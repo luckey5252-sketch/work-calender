@@ -1,0 +1,4 @@
+fastapi>=0.110
+uvicorn>=0.29
+itsdangerous>=2.0
+psycopg[binary]>=3.1   # Supabase(Postgres) 연결. DATABASE_URL 미설정 시엔 미사용(로컬 SQLite).

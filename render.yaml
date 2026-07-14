@@ -1,0 +1,23 @@
+# Render 배포 블루프린트 — 업무 달력(FastAPI + 프론트 정적 서빙). DB 는 Supabase(Postgres).
+# 대시보드에서 "New > Blueprint" 로 이 저장소를 연결하면 이 설정대로 서비스가 생성된다.
+# DB 가 원격(Supabase)이라 영구 디스크가 필요 없어 free 플랜으로 충분하다.
+services:
+  - type: web
+    name: work-calendar
+    runtime: python
+    plan: free               # DB 가 Supabase 라 디스크 불필요. free 는 미접속 시 휴면(첫 요청 느림).
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.2"
+      - key: CAL_SECRET       # 세션 서명 키 — Render 가 무작위 생성
+        generateValue: true
+      - key: CAL_HTTPS        # HTTPS 뒤 → Secure 쿠키 켜기
+        value: "1"
+      - key: DATABASE_URL     # Supabase 연결 문자열 — 대시보드에서 직접 입력(코드에 안 남김)
+        sync: false
+      - key: CAL_ADMIN_USER   # 시드 관리자 — 대시보드에서 직접 입력
+        sync: false
+      - key: CAL_ADMIN_PASS
+        sync: false

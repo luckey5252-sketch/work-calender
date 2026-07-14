@@ -1,0 +1,15 @@
+{
+  "name": "work-calendar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "웹 업무용 달력 (바닐라 JS, 빌드 없음)",
+  "scripts": {
+    "test": "node test/calendar.test.mjs && node test/render.smoke.mjs && node test/holidays.test.mjs",
+    "serve": "python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload"
+  },
+  "devDependencies": {
+    "date-fns": "^3.6.0",
+    "jsdom": "^24.1.3"
+  }
+}
