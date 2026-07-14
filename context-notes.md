@@ -101,4 +101,6 @@
 - **쿼리 한 벌 유지**: main.py SQL은 sqlite 스타일(`?`/`:name`) 그대로. db.py `_PgAdapter`가 Postgres일 때만 `%s`/`%(name)s`로 번역(dict면 named, 아니면 positional). 우리 SQL엔 `%` 리터럴 없어 이스케이프 불필요.
 - **`end` 예약어**: Postgres에서 `end`는 예약어라 스키마·INSERT·UPDATE에서 `"end"`로 인용. SQLite도 따옴표 식별자를 허용해 양쪽 동작. (컬럼명 변경 대신 인용 선택 — 수술적.)
 - **psycopg 옵션**: `prepare_threshold=None`(Supabase 트랜잭션 풀러 호환), `row_factory=dict_row`(sqlite3.Row와 동일하게 `row["col"]` 접근). import는 connect() 안에서 지연(SQLite만 쓰면 psycopg 불필요).
-- **검증 상태**: SQLite 회귀 백엔드 28 통과(무변경 확인). 앱 실행 쿼리 19개 어댑터 번역 잔여 placeholder 0·"end" 인용 확인. **실 Postgres 라이브검증 미완** — Docker Desktop 기동 실패로 로컬 PG 못 띄움. `scratchpad/smoke_pg.py`(DATABASE_URL 주면 실 DB CRUD 스모크) 준비. 사용자 Supabase 프로젝트 생성 후 검증 예정.
+- **검증 상태**: SQLite 회귀 백엔드 28 통과(무변경 확인). 앱 실행 쿼리 19개 어댑터 번역 잔여 placeholder 0·"end" 인용 확인.
+- **스모크 스크립트 재작성 (2026-07-15)**: `backend/smoke_pg.py`(scratchpad 아닌 backend/ 에 둠 — test_api.py 와 동일 위치라 찾기·커밋 쉬움). DATABASE_URL 있으면 실 PG 로 27체크(공개읽기·미로그인401·로그인·CRUD·타임스탬프·계정관리 규칙), 끝나면 정리(events 스모크행+editor+tester 삭제)해 배포용 빈 DB 남김. `run()`/`cleanup()` 을 import 가능하게 두고 DATABASE_URL 가드는 `__main__` 안으로 → SQLite 임시 DB 드라이런으로 로직 27체크 통과 확인(실 PG 없이 로직 오류 선제거). 어댑터 경로(?→%s) 는 실행 시 검증됨. psycopg 3.3.4 로컬 설치 확인 → 연결문자열만 있으면 즉시 실행.
+- **전제**: 빈(신규) Supabase 를 전제한다. "마지막 관리자 삭제 400" 검증이 tester 가 유일 관리자임에 기대므로, 이미 관리자가 있는 DB 에선 그 체크가 안 맞는다(배포 전 스모크 용도).

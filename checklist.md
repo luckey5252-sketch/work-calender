@@ -99,10 +99,12 @@
 - [x] config.py DATABASE_URL. db.py 얇은 어댑터(_PgAdapter)로 ?/:name → %s/%(name)s 번역 → main.py 쿼리 무변경. "end"는 PG 예약어라 인용(양쪽 호환).
 - [x] main.py INSERT/UPDATE end 컬럼 "end" 인용. requirements.txt psycopg[binary]. render.yaml free 플랜(디스크 불필요)+DATABASE_URL. README Supabase 절차·env표.
 - [x] 검증: SQLite 회귀 백엔드 28 통과(기존동작 무변경). 전체 19개 쿼리 어댑터 번역 잔여 placeholder 0·"end" 인용 확인.
-- [ ] **실 Postgres 라이브 검증 미완** — Docker 기동 실패로 로컬 PG 못 띄움. Supabase 연결문자열 받으면 scratchpad/smoke_pg.py 로 CRUD 실검증 예정.
+- [x] 스모크 스크립트 `backend/smoke_pg.py` 작성 — DATABASE_URL 주면 실 PG로 CRUD·인증·계정관리 27체크. 끝나면 테스트 데이터 정리(배포용 빈 DB). SQLite 드라이런으로 로직 27체크 통과 검증. psycopg 3.3.4 로컬 설치 확인.
+- [ ] **실 Postgres 라이브 검증 미완** — Supabase 연결문자열 받으면 `DATABASE_URL='...' python -m backend.smoke_pg` 실행만 남음(스크립트·psycopg 준비 완료).
 
 ## 상태 (2026-07-11 갱신)
 - 요청 기능 구현·검증 완료(프론트 31 / 백엔드 28, SQLite). Supabase 전환은 코드 완료·SQLite 회귀 통과, **실 PG 라이브 검증만 남음**(연결문자열 필요).
 - 배포: DB=Supabase(무료) + 앱=Render(무료 blueprint). git 저장소화 → Blueprint 연결 → DATABASE_URL·관리자 env 입력.
-- 미결/다음: (1) Supabase 실 검증(smoke_pg.py), (2) 실제 배포 실행, (3) 사용자 본인 비밀번호 변경(범위밖).
+- 미결/다음: (1) Supabase 실 검증 — 연결문자열로 `python -m backend.smoke_pg` 실행만 남음(스크립트·psycopg 준비·SQLite 드라이런 통과), (2) 실제 배포 실행, (3) 사용자 본인 비밀번호 변경(범위밖).
 - 재개(로컬): `npm run serve` → http://127.0.0.1:8000 (admin/admin, SQLite).
+- Supabase 검증(연결문자열 받은 뒤): `DATABASE_URL='postgresql://postgres:<pw>@<host>:5432/postgres' python -m backend.smoke_pg` → "27 passed (실 Postgres)". 빈 Supabase 전제(관리자 삭제 규칙 검증이 tester 유일 관리자에 기댐).
