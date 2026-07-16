@@ -104,3 +104,12 @@
 - **검증 상태**: SQLite 회귀 백엔드 28 통과(무변경 확인). 앱 실행 쿼리 19개 어댑터 번역 잔여 placeholder 0·"end" 인용 확인.
 - **스모크 스크립트 재작성 (2026-07-15)**: `backend/smoke_pg.py`(scratchpad 아닌 backend/ 에 둠 — test_api.py 와 동일 위치라 찾기·커밋 쉬움). DATABASE_URL 있으면 실 PG 로 27체크(공개읽기·미로그인401·로그인·CRUD·타임스탬프·계정관리 규칙), 끝나면 정리(events 스모크행+editor+tester 삭제)해 배포용 빈 DB 남김. `run()`/`cleanup()` 을 import 가능하게 두고 DATABASE_URL 가드는 `__main__` 안으로 → SQLite 임시 DB 드라이런으로 로직 27체크 통과 확인(실 PG 없이 로직 오류 선제거). 어댑터 경로(?→%s) 는 실행 시 검증됨. psycopg 3.3.4 로컬 설치 확인 → 연결문자열만 있으면 즉시 실행.
 - **전제**: 빈(신규) Supabase 를 전제한다. "마지막 관리자 삭제 400" 검증이 tester 가 유일 관리자임에 기대므로, 이미 관리자가 있는 DB 에선 그 체크가 안 맞는다(배포 전 스모크 용도).
+
+## 실 Postgres 라이브 검증 완료 (2026-07-17)
+
+- **결과**: 실 Supabase(서울 ap-northeast-2)로 `python -m backend.smoke_pg` → **27 passed**. B안(저장소만 PG 전환)의 마지막 미검증 항목이 닫혔다. SQLite 드라이런에서 증명 못 하던 부분 — `_PgAdapter` 의 `?`→`%s` 번역, `"end"` 예약어 인용, psycopg 연결 옵션 — 이 실 PG 에서 동작함을 확인.
+- **연결 경로**: Session pooler(`aws-1-ap-northeast-2.pooler.supabase.com:5432`, user=`postgres.<ref>`). 사용자가 처음 준 Direct connection(`db.<ref>.supabase.co`)은 무료 플랜에서 IPv6 전용이라 IPv4 환경에서 실패 가능 → pooler 권장. `prepare_threshold=None` 이 pooler 호환을 이미 잡아둔 상태였다.
+- **정리 확인**: 스모크 후 `events` 0행 / `users` 0행을 DB 직접 조회로 확인. 스키마만 남은 배포용 빈 DB(실 배포의 init_db 가 진짜 관리자를 시드).
+- **em-dash 버그**: 마지막 `print` 의 `—`(U+2014)가 Windows cp949 콘솔에서 UnicodeEncodeError → 27 체크가 모두 통과했는데도 exit 1. `cleanup()` 은 `finally` 안에서 print 보다 먼저 돌아 정리 자체는 영향 없었다. 출력 문자열의 em-dash 만 하이픈으로 교체(주석·문서의 em-dash 는 유지 — 콘솔로 안 나간다). 수정 후 exit 0 재확인.
+- **주의**: 스모크는 `events`/`users` 를 지운다. 운영 데이터가 들어간 뒤에는 절대 실행 금지 — 배포 전 빈 DB 전용이다.
+- **보안**: 검증에 쓴 DB 비밀번호가 대화 기록에 남았다. 배포 전 Supabase Settings→Database 에서 교체 권고(교체해도 코드 변경 없음 — DATABASE_URL 은 env).

@@ -120,7 +120,7 @@ def run():
 if __name__ == "__main__":
     # DATABASE_URL 이 없으면 이 스크립트는 의미가 없다(그냥 test_api.py 를 쓰라).
     if not os.environ.get("DATABASE_URL"):
-        print("DATABASE_URL 미설정 — Supabase 연결 문자열을 주고 실행하라.", file=sys.stderr)
+        print("DATABASE_URL 미설정 - Supabase 연결 문자열을 주고 실행하라.", file=sys.stderr)
         print("예: DATABASE_URL='postgresql://postgres:<pw>@<host>:5432/postgres' "
               "python -m backend.smoke_pg", file=sys.stderr)
         sys.exit(2)
@@ -128,4 +128,5 @@ if __name__ == "__main__":
         run()
     finally:
         cleanup()
-        print("정리 완료 — users/events 의 스모크 데이터 삭제(배포 시 실 관리자 재시드).")
+        # 출력의 em-dash 는 Windows cp949 콘솔에서 UnicodeEncodeError 를 낸다(하이픈 사용).
+        print("정리 완료 - users/events 의 스모크 데이터 삭제(배포 시 실 관리자 재시드).")
