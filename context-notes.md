@@ -112,4 +112,19 @@
 - **정리 확인**: 스모크 후 `events` 0행 / `users` 0행을 DB 직접 조회로 확인. 스키마만 남은 배포용 빈 DB(실 배포의 init_db 가 진짜 관리자를 시드).
 - **em-dash 버그**: 마지막 `print` 의 `—`(U+2014)가 Windows cp949 콘솔에서 UnicodeEncodeError → 27 체크가 모두 통과했는데도 exit 1. `cleanup()` 은 `finally` 안에서 print 보다 먼저 돌아 정리 자체는 영향 없었다. 출력 문자열의 em-dash 만 하이픈으로 교체(주석·문서의 em-dash 는 유지 — 콘솔로 안 나간다). 수정 후 exit 0 재확인.
 - **주의**: 스모크는 `events`/`users` 를 지운다. 운영 데이터가 들어간 뒤에는 절대 실행 금지 — 배포 전 빈 DB 전용이다.
-- **보안**: 검증에 쓴 DB 비밀번호가 대화 기록에 남았다. 배포 전 Supabase Settings→Database 에서 교체 권고(교체해도 코드 변경 없음 — DATABASE_URL 은 env).
+- **보안**: 검증에 쓴 DB 비밀번호가 대화 기록에 남았다. 배포 전 Supabase Settings→Database 에서 교체 권고(교체해도 코드 변경 없음 — DATABASE_URL 은 env). → **사용자가 교체 완료(2026-07-17).** 이후 연결문자열은 대화에 남기지 않고 Render 대시보드에 직접 입력한다(그래서 지금은 우리가 실 PG 로 재검증 불가 — 필요하면 사용자에게 요청).
+
+## 호스팅 재검토 — Vercel 검토 후 Render 유지 (2026-07-17)
+
+- **사용자 요청**: "vercel 로 무료 배포". 검토 결과 **부적합 — Vercel Hobby(무료)는 상업적 사용 금지**. fair use 규정상 "프로젝트 제작에 관여한 누구든 금전적 이득을 목적으로 하는 배포(**유급 직원이 코드를 작성한 경우 포함**)"가 상업적 사용이라, 결제·광고가 없어도 **회사 업무용이면 위반**. 이 프로젝트는 CLAUDE.md 첫 줄부터 "업무용 달력" → Pro($20/월) 필요 → "무료" 요구와 모순. (개인 전용으로만 쓰면 Hobby 가능.)
+- **기술적으로도 변경 폭이 컸다**(참고): Vercel 은 엔트리를 루트/`src`/`app`/`api` 에서 찾아 `backend/main.py` 는 `pyproject.toml` 의 `[tool.vercel] entrypoint` 필요. 정적은 `public/**` 에 둬야 하고 공식 문서가 `app.mount(...)` 를 쓰지 말라고 명시 → main.py 의 StaticFiles 마운트 제거 + 프론트 재배치. 서버리스라 Supabase **Transaction pooler(6543)** 필요(다만 `prepare_threshold=None` 덕에 코드 변경은 없었을 것).
+- **다른 무료 후보 조사(2026-07 기준)**: Fly.io·Railway·Koyeb **무료 티어 전부 폐지**(옛 블로그가 아직 무료라고 해서 주의). 실질 대안은 Google Cloud Run(Always Free 월 200만 요청, 상업적 사용 명시 허용, 콜드스타트 수 초로 Render 보다 빠름 — 대신 카드 등록·Dockerfile 필요, 무료 티어 리전이 미국 한정이라는 정보 있으나 공식 확인 못 함)과 Oracle Cloud(진짜 VM·휴면 없음·운영 부담 큼).
+- **결정: Render 무료 유지.** 코드 변경 0(render.yaml 이미 있음), 약관 무관, 카드 불필요. 유일한 단점은 휴면 후 첫 요청 30~60초. **거슬리면 Cloud Run 으로 이전**(코드가 거의 그대로라 이전 비용 낮음) — 이게 다음 후보다.
+
+## Render 배포 진행 상황 (2026-07-17, 미완)
+
+- **코드 준비 완료·실측**: render.yaml 의 startCommand 를 그대로 로컬 실행해 검증 — 공개읽기 200, 정적(`/`, `/src/main.js`, `/vendor/date-fns.js`) 200, 미로그인 POST 401, `CAL_ADMIN_USER/PASS` 시드 관리자 로그인 성공, `CAL_HTTPS=1` → `secure; httponly; samesite=lax`. `FRONTEND_DIR = Path(__file__).resolve().parent.parent` 이 절대경로라 Render 의 cwd 와 무관.
+- **자동화 불가**: Render CLI 없음 + `RENDER_API_KEY` 미설정 → 대시보드 조작은 사용자가 브라우저로. (원한다면 API 키를 만들어 주면 이후는 자동화 가능.)
+- **막힌 지점**: New→Blueprint 가 "No repositories found" + 하단 "An error occurred". GitHub 연결 자체는 되어 있다(우측 라벨이 `Connect account +` → `Configure account` 로 바뀐 것이 근거). 따라서 원인은 연결이 아니라 **Render GitHub App 의 repository access 미부여**(설치 시 select repositories 에서 체크 누락, 혹은 저장소 주인 `luckey5252-sketch` 가 아닌 다른 계정에 설치).
+- **다음 조치**: https://github.com/settings/installations → Render → Configure → Repository access 에 `work-calender` 추가 → Render 새로고침. 우회로는 공개 URL 직접 입력(저장소가 public 임을 비인증 ls-remote 로 확인) — 자동 재배포만 포기하면 즉시 배포 가능.
+- **gh CLI 토큰 만료**: `gh auth status` 가 keyring 토큰 invalid. 다만 git push 는 별도 자격증명으로 성공했다. gh 를 쓸 일이 생기면 `gh auth refresh -h github.com` 필요.

@@ -103,10 +103,20 @@
 - [x] **실 Postgres 라이브 검증 완료 (2026-07-17)** — 실 Supabase(서울 ap-northeast-2, Session pooler)로 `python -m backend.smoke_pg` → **27 passed**. 어댑터(?→%s)·`"end"` 인용이 실 PG에서 동작 확인. 정리 후 events 0행·users 0행(배포용 빈 DB) 직접 조회로 확인.
 - [x] smoke_pg 출력의 em-dash → 하이픈. cp949 콘솔에서 마지막 print 가 UnicodeEncodeError → 27 통과인데 exit 1 로 보이던 문제(검증 로직 무관). 수정 후 exit 0 재확인.
 
+## J. Render 배포 실행 (2026-07-17, **진행 중**)
+
+- [x] 호스팅 재검토 — 사용자가 Vercel 무료 요청 → **Vercel Hobby 는 상업적 사용 금지**(fair use: 유급 직원이 만든 업무용 배포 포함) → "업무용 달력"과 충돌. Fly.io·Railway·Koyeb 무료 티어는 2026 기준 폐지 확인. Render 무료 유지 결정(코드 변경 0·약관 무관·카드 불필요).
+- [x] GitHub 푸시 — `luckey5252-sketch/work-calender` main = dd52da5. 공개 저장소(비인증 ls-remote 확인). `.db`·`.env` 미커밋 확인.
+- [x] render.yaml startCommand 로컬 실측 — `GET /events` 200 / `GET /` 200 / `/src/main.js`·`/vendor/date-fns.js` 200 / 미로그인 POST 401 / `CAL_ADMIN_*` 시드 관리자 로그인 성공 / `CAL_HTTPS=1` → 쿠키 `secure; httponly; samesite=lax`. FRONTEND_DIR 이 절대경로라 cwd 무관 확인.
+- [ ] **Render Blueprint 연결 — 여기서 막힘.** New→Blueprint 화면이 "No repositories found" + 하단 "An error occurred". GitHub 자체는 연결됨(우측이 `Connect account +` 아닌 `Configure account`). 원인은 **Render GitHub App 에 저장소 접근권한 미부여**로 추정.
+- [ ] env 3개 입력(`DATABASE_URL`=Session pooler 문자열 / `CAL_ADMIN_USER` / `CAL_ADMIN_PASS`) → Apply
+- [ ] 배포 후 라이브 검증(공개읽기·미로그인401·Secure 쿠키·공휴일 표시)
+
 ## 상태 (2026-07-17 갱신)
-- 요청 기능 구현·검증 완료(프론트 31 / 백엔드 28 SQLite / 스모크 27 **실 Supabase**). Supabase 전환 **코드·라이브 검증 모두 완료**.
-- 배포: DB=Supabase(무료, 서울 ap-northeast-2, 스키마 생성됨·데이터 비어있음) + 앱=Render(무료 blueprint). git 저장소화 → Blueprint 연결 → DATABASE_URL·관리자 env 입력.
-- 미결/다음: (1) **실제 Render 배포 실행**(다음 작업), (2) 사용자 본인 비밀번호 변경(범위밖).
-- 보안 숙제: 스모크에 쓴 Supabase DB 비밀번호가 대화에 노출됨 → 배포 전 Settings→Database 에서 교체 권고.
+- 요청 기능 구현·검증 완료(프론트 31 / 백엔드 28 SQLite / 스모크 27 **실 Supabase**). Supabase 전환 **코드·라이브 검증 모두 완료**. 코드 쪽 배포 준비 끝 — 남은 건 Render 대시보드 조작뿐(브라우저 필요, 자동화 불가: Render CLI·API 키 없음).
+- 배포: DB=Supabase(무료, 서울 ap-northeast-2, 스키마 생성됨·데이터 비어있음) + 앱=Render(무료 blueprint).
+- **내일 재개 지점**: Render GitHub App 권한 붙이기 → https://github.com/settings/installations → Render → Configure → Repository access 에 `work-calender` 추가(계정이 `luckey5252-sketch` 인지 확인) → Render 새로고침. 안 되면 우회로: 공개 URL `https://github.com/luckey5252-sketch/work-calender.git` 직접 입력(자동 재배포만 포기).
+- 미결/다음: (1) **Render Blueprint 연결·배포**(진행 중), (2) 사용자 본인 비밀번호 변경(범위밖).
+- 보안: 스모크에 쓴 Supabase DB 비밀번호 노출 → **사용자가 교체 완료(2026-07-17)**. 이후 연결문자열은 대화에 남기지 않고 Render 대시보드에 직접 입력하기로 함.
 - 재개(로컬): `npm run serve` → http://127.0.0.1:8000 (admin/admin, SQLite).
 - Supabase 재검증 시: `DATABASE_URL='postgresql://postgres.<ref>:<pw>@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres' python -m backend.smoke_pg`. 빈 Supabase 전제(관리자 삭제 규칙 검증이 tester 유일 관리자에 기댐) — 운영 데이터가 들어간 뒤엔 돌리지 말 것(스모크가 events/users 를 지운다).
