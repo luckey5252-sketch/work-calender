@@ -111,7 +111,9 @@
 - [x] **Render Blueprint 연결 완료.** "No repositories found" 의 진짜 원인은 권한 미부여가 아니라 **GitHub 계정 2개 중 저장소가 없는 쪽에 Render 가 붙어 있던 것**(Render 는 브라우저의 활성 GitHub 세션을 그대로 씀). 사용자가 해결 → blueprint `calenderforus` 가 `luckey5252-sketch/work-calender` main 에 연결됨.
 - [x] env 3개 입력 → **첫 Apply 때 건너뛰어 배포가 기본값으로 뜸**(아래 사고 기록). 이후 입력 완료.
 - [x] 배포 후 라이브 검증 — `admin/admin` 401 거부 / 미로그인 POST·`/users` 401 / 공개 `GET /events` 200 / 정적(`/`, `/src/main.js`, `/vendor/date-fns.js`, `/css/styles.css`) 200. URL = https://work-calendar-c62u.onrender.com (`work-calendar.onrender.com` 은 남의 앱이 선점).
-- [ ] 사용자 브라우저 확인 — 관리자 로그인·일정 추가·공휴일 표시, Supabase Table Editor 에 데이터 적재 확인(휘발성 SQLite 아님을 최종 확증)
+- [x] Supabase 적재 확인 — Table Editor 에 `events` 3행 / `users` 1행. 공개 API 로도 3건 조회됨(휘발성 SQLite 아님 **확증**).
+- [x] **Supabase RLS 켬** — `events`·`users` 가 RLS Disabled 라 PostgREST(anon 키)로 FastAPI 인증을 우회할 수 있었다. 정책 없이 RLS 만 켜서 anon 차단(소유자 `postgres` 는 우회하므로 앱 무영향). 켠 뒤 실측: 읽기 3건 유지·`/events/:id` 200·미로그인 POST 401.
+- [ ] 브라우저 최종 확인 — 관리자 로그인·**일정 추가(RLS 켠 뒤 쓰기 경로)**·공휴일 표시
 
 ### J-1. 배포 중 사고 기록 (재발 방지)
 - [x] **공개 URL 에 `admin/admin` 관리자 노출** — Blueprint Apply 에서 `sync: false` env 3개를 건너뛰자 `config.py` 가 경고만 남기고 기본값으로 폴백(에러 없이 기동). 발견 후 env 주입으로 해소. 데이터 0건·URL 미공개 상태라 실피해 없음.

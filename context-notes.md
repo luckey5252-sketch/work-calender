@@ -159,6 +159,16 @@
 - 진단 도구를 scratchpad 에 만들어 썼다(`check_db_url.py`): 연결문자열의 사용자명 형식·호스트 종류·자리표시자 잔존·URL 인코딩 필요 문자를 검사하고 실제 연결까지 시도한다. **비밀번호는 길이만 출력**해 대화에 노출되지 않는다. Render 배포는 왕복 2분이라, 이런 건 로컬에서 5초에 거르는 게 맞다. (일회성이라 커밋 안 함. 필요하면 backend/ 로 승격.)
 - **em-dash 버그를 또 냈다.** `smoke_pg.py` 에서 겪고 이 문서에 적어놨는데도 반복 → cp949 콘솔은 U+2014 를 인코딩 못 해 `UnicodeEncodeError`. **콘솔로 나가는 문자열엔 em-dash 를 쓰지 말 것**(주석·문서는 무방).
 
+### Supabase RLS 켬 (2026-07-17)
+
+- **문제**: `events`·`users` 의 RLS 가 `Disabled` 였다. Supabase 는 프로젝트마다 PostgREST(`https://<ref>.supabase.co/rest/v1/`)를 자동 노출하고, `public` 스키마에 `postgres` 역할로 만든 테이블에는 기본 권한(`ALTER DEFAULT PRIVILEGES ... GRANT ALL ON TABLES TO anon, authenticated`)이 자동으로 붙는다. 우리는 psycopg 로 직접 DDL 을 실행했으므로 해당된다.
+- **위험**: anon 키 보유자가 **FastAPI 의 인증을 통째로 우회**해 테이블을 직접 읽고 쓸 수 있다. `users` 에는 pw_hash 가 있고 `events` 는 삭제 가능. anon 키는 원래 프론트에 박아두는 **공개용 키**라 비밀 유지를 전제하면 안 된다. (B안은 Supabase 를 DB 로만 쓰므로 PostgREST 는 쓰지 않는데, 자동으로 열려 있는 게 함정.)
+- **조치**: 정책 없이 RLS 만 켰다. `alter table public.events enable row level security;` / 같은 것을 `users` 에도.
+- **앱이 안 깨지는 이유**: 테이블 소유자(`postgres`)는 RLS 를 우회한다(`FORCE ROW LEVEL SECURITY` 를 걸지 않는 한). 우리 연결이 그 역할이다. 정책이 없으면 `anon`/`authenticated` 는 전부 거부.
+- **실측**: 켠 뒤 `GET /events` 3건 유지·`GET /events/:id` 200·미로그인 POST 401. 읽기 경로는 확인됨. **쓰기 경로(로그인 후 생성)는 관리자 비밀번호가 없어 외부 검증 불가 → 사용자 브라우저 확인에 의존.**
+- **교훈**: Supabase 를 "그냥 Postgres" 로 쓸 때도 **PostgREST 노출은 기본값으로 켜져 있다.** DB 로만 쓰는 구조라도 RLS 는 켜두는 게 맞다.
+
 ### 남은 것
 - **`render.yaml` 하드닝**: `sync: false` env 가 비어도 배포가 성공하는 게 사고 1 의 근본 원인. 운영에서 필수 env 가 없으면 조용히 기본값으로 뜨는 대신 **기동을 실패시키는** 편이 안전하다(fail-open → fail-closed). `CAL_HTTPS=1` 같은 운영 신호를 조건으로 삼는 방안 검토.
-- 브라우저 최종 확인: 관리자 로그인·일정 추가·공휴일 표시, Supabase Table Editor 적재 확인(휘발성 아님 확증).
+- 브라우저 최종 확인: 관리자 로그인·일정 추가(RLS 켠 뒤 쓰기 경로)·공휴일 표시.
+- **경고**: 이제 운영 데이터가 있다. `backend/smoke_pg.py` 를 이 DB 에 절대 실행하지 말 것(events/users 를 지운다).
