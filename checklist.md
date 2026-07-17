@@ -113,7 +113,7 @@
 - [x] 배포 후 라이브 검증 — `admin/admin` 401 거부 / 미로그인 POST·`/users` 401 / 공개 `GET /events` 200 / 정적(`/`, `/src/main.js`, `/vendor/date-fns.js`, `/css/styles.css`) 200. URL = https://work-calendar-c62u.onrender.com (`work-calendar.onrender.com` 은 남의 앱이 선점).
 - [x] Supabase 적재 확인 — Table Editor 에 `events` 3행 / `users` 1행. 공개 API 로도 3건 조회됨(휘발성 SQLite 아님 **확증**).
 - [x] **Supabase RLS 켬** — `events`·`users` 가 RLS Disabled 라 PostgREST(anon 키)로 FastAPI 인증을 우회할 수 있었다. 정책 없이 RLS 만 켜서 anon 차단(소유자 `postgres` 는 우회하므로 앱 무영향). 켠 뒤 실측: 읽기 3건 유지·`/events/:id` 200·미로그인 POST 401.
-- [ ] 브라우저 최종 확인 — 관리자 로그인·**일정 추가(RLS 켠 뒤 쓰기 경로)**·공휴일 표시
+- [x] 브라우저 최종 확인 — 사용자가 실제로 일정을 추가해 라이브 일정 3건→4건(`tbm`). **RLS 켠 뒤에도 쓰기 정상** 확인됨.
 
 ### J-1. 배포 중 사고 기록 (재발 방지)
 - [x] **공개 URL 에 `admin/admin` 관리자 노출** — Blueprint Apply 에서 `sync: false` env 3개를 건너뛰자 `config.py` 가 경고만 남기고 기본값으로 폴백(에러 없이 기동). 발견 후 env 주입으로 해소. 데이터 0건·URL 미공개 상태라 실피해 없음.
@@ -126,7 +126,42 @@
 - 요청 기능 구현·검증 완료(프론트 31 / 백엔드 28 SQLite / 스모크 27 **실 Supabase**). Supabase 전환 **코드·라이브 검증 모두 완료**.
 - **배포 완료 — https://work-calendar-c62u.onrender.com** (앱=Render 무료 blueprint `calenderforus`, DB=Supabase 서울 ap-northeast-2 Session pooler). 라이브 검증 통과(공개읽기 200 / 미로그인 쓰기 401 / `admin/admin` 401).
 - 무료 플랜 특성: 15분 미접속 시 휴면 → 첫 요청 50~60초. 거슬리면 Cloud Run 이전 후보(코드 거의 그대로).
-- 미결/다음: (1) 브라우저 최종 확인(로그인·일정추가·Supabase 적재), (2) `render.yaml` 필수 env 하드닝, (3) 사용자 본인 비밀번호 변경(범위밖).
+- 미결/다음: (1) **3차 기능 보완 설계**(아래 K, 내일 재개), (2) `render.yaml` 필수 env 하드닝, (3) 사용자 본인 비밀번호 변경(범위밖).
 - 보안: 스모크에 쓴 Supabase DB 비밀번호 노출 → **사용자가 교체 완료(2026-07-17)**. 이후 연결문자열은 대화에 남기지 않고 Render 대시보드에 직접 입력하기로 함.
 - 재개(로컬): `npm run serve` → http://127.0.0.1:8000 (admin/admin, SQLite).
 - Supabase 재검증 시: `DATABASE_URL='postgresql://postgres.<ref>:<pw>@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres' python -m backend.smoke_pg`. 빈 Supabase 전제(관리자 삭제 규칙 검증이 tester 유일 관리자에 기댐) — 운영 데이터가 들어간 뒤엔 돌리지 말 것(스모크가 events/users 를 지운다).
+
+
+---
+
+# K. 3차 기능 보완 (2026-07-17 설계 중 — **내일 재개**)
+
+사용자 요청 3건. `superpowers:brainstorming` 진행 중 — **설계 승인 전이라 코드는 손대지 않았다.**
+
+## 요청
+1. 본부장 체크 시 칩이 파랑으로 안 바뀜 — **진단 완료**
+2. 주간뷰에도 담당부서 표시
+3. '수정' 배지를 노란색으로 채움
+
+## 1번 진단 — 렌더 버그가 아니었다 (실측 완료)
+- 백엔드 `isHead` 왕복 **정상** (TestClient 실측: POST→GET 에서 `isHead: True` 보존).
+- `render.js:53,56` 은 `is-head` 클래스를 제대로 붙이고 `css/styles.css:273` `.chip.is-head` 규칙도 정상.
+- **진짜 원인**: 라이브 일정 4건 전부 `attendees=[]`. `main.js:373` 의 `.filter((a) => a.name)` 이 **이름이 빈 참석자를 경고 없이 버린다** → 본부장만 체크하고 이름을 안 적으면 체크가 통째로 사라진다.
+- 새 일정 폼은 참석자 줄이 **0개로 시작**(`main.js:221`) → `+ 참석자` 를 눌러야 체크박스가 생긴다.
+- ⚠ 2026-07-09 에 같은 문의를 "체크 안 함(로직 정상)"으로 닫았는데 **그게 오진이었다.** 같은 문의가 재발하면 사용자 실수가 아니라 설계 결함 신호로 볼 것.
+
+## 확정된 결정
+- **본부장을 참석자 명단에서 일정 속성으로 올린다** — 폼에 `본부장 ( )참석 ( )미참석` 선택.
+- **A안 채택**: 참석을 고르면 **참석자 입력칸을 감춘다**(본부장 참석 일정엔 명단 불필요). 미참석이면 참석자 칸이 나타난다.
+- **수정 배지 = 채움형 노랑** (사용자 스크린샷으로 확인 — 칩 안의 작은 `수정` 박스 배경을 노랑으로). **신규 배지는 파란 테두리 유지.**
+  - 팔레트 주의: 형광 노랑은 CLAUDE.md 가 금지한 클리셰. 크림 배경(`#F5F4EF`)에서 가독성이 나오는 **절제된 앰버**로 잡을 것.
+
+## 열린 질문 — **여기부터 재개**
+- **주간뷰 담당부서 위치** — ① 태그 자리(`[수정][출장][안전총괄] 09:00`) vs ② 제목 아래 세 번째 줄(작게·흐리게). **제안 = ②** (실데이터 부서명이 `안전총괄`·`안전총괄부` 로 길어 ①은 좁은 주간 칸에서 첫 줄이 밀린다. 부서는 분류·시간과 성격도 다름.)
+
+## 설계 확정 후 정할 것 (아직 안 물음)
+- 기존 일정 4건(모두 `attendees=[]`)은 마이그레이션 없이 **미참석**으로 읽히면 될 듯 — 확인 필요.
+- 모델 변경안: Event 에 플래그 추가 vs `Attendee.isHead` 유지. **CLAUDE.md 의 데이터 모델과 "칩 색은 isHead 로 판단" 서술을 함께 고쳐야 한다.**
+- 정리 범위: 백엔드 `Attendee.isHead`(`backend/main.py:23`), 프론트 `attendeeRow`·`att-ishead`(`main.js:184~200`).
+- `index.html:110` 힌트 문구("본부장은 직책 체크 시…") 갱신.
+- `chip()` 은 월/주 공용(`render.js:48`) → 부서는 주간뷰에만 나오게 옵션 인자 필요.
