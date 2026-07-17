@@ -108,15 +108,23 @@
 - [x] 호스팅 재검토 — 사용자가 Vercel 무료 요청 → **Vercel Hobby 는 상업적 사용 금지**(fair use: 유급 직원이 만든 업무용 배포 포함) → "업무용 달력"과 충돌. Fly.io·Railway·Koyeb 무료 티어는 2026 기준 폐지 확인. Render 무료 유지 결정(코드 변경 0·약관 무관·카드 불필요).
 - [x] GitHub 푸시 — `luckey5252-sketch/work-calender` main = dd52da5. 공개 저장소(비인증 ls-remote 확인). `.db`·`.env` 미커밋 확인.
 - [x] render.yaml startCommand 로컬 실측 — `GET /events` 200 / `GET /` 200 / `/src/main.js`·`/vendor/date-fns.js` 200 / 미로그인 POST 401 / `CAL_ADMIN_*` 시드 관리자 로그인 성공 / `CAL_HTTPS=1` → 쿠키 `secure; httponly; samesite=lax`. FRONTEND_DIR 이 절대경로라 cwd 무관 확인.
-- [ ] **Render Blueprint 연결 — 여기서 막힘.** New→Blueprint 화면이 "No repositories found" + 하단 "An error occurred". GitHub 자체는 연결됨(우측이 `Connect account +` 아닌 `Configure account`). 원인은 **Render GitHub App 에 저장소 접근권한 미부여**로 추정.
-- [ ] env 3개 입력(`DATABASE_URL`=Session pooler 문자열 / `CAL_ADMIN_USER` / `CAL_ADMIN_PASS`) → Apply
-- [ ] 배포 후 라이브 검증(공개읽기·미로그인401·Secure 쿠키·공휴일 표시)
+- [x] **Render Blueprint 연결 완료.** "No repositories found" 의 진짜 원인은 권한 미부여가 아니라 **GitHub 계정 2개 중 저장소가 없는 쪽에 Render 가 붙어 있던 것**(Render 는 브라우저의 활성 GitHub 세션을 그대로 씀). 사용자가 해결 → blueprint `calenderforus` 가 `luckey5252-sketch/work-calender` main 에 연결됨.
+- [x] env 3개 입력 → **첫 Apply 때 건너뛰어 배포가 기본값으로 뜸**(아래 사고 기록). 이후 입력 완료.
+- [x] 배포 후 라이브 검증 — `admin/admin` 401 거부 / 미로그인 POST·`/users` 401 / 공개 `GET /events` 200 / 정적(`/`, `/src/main.js`, `/vendor/date-fns.js`, `/css/styles.css`) 200. URL = https://work-calendar-c62u.onrender.com (`work-calendar.onrender.com` 은 남의 앱이 선점).
+- [ ] 사용자 브라우저 확인 — 관리자 로그인·일정 추가·공휴일 표시, Supabase Table Editor 에 데이터 적재 확인(휘발성 SQLite 아님을 최종 확증)
+
+### J-1. 배포 중 사고 기록 (재발 방지)
+- [x] **공개 URL 에 `admin/admin` 관리자 노출** — Blueprint Apply 에서 `sync: false` env 3개를 건너뛰자 `config.py` 가 경고만 남기고 기본값으로 폴백(에러 없이 기동). 발견 후 env 주입으로 해소. 데이터 0건·URL 미공개 상태라 실피해 없음.
+- [x] **배포 2회 실패(`Exited with status 3`)** — `DATABASE_URL` 사용자명에 `.<ref>` 누락. uvicorn 은 startup 예외 시 exit 3. Render 는 새 배포 실패 시 **옛 인스턴스를 계속 서빙** → 겉보기 200 이라 실패를 놓치기 쉬움.
+- [x] **진단 함정**: Supavisor 는 `.<ref>` 없는 사용자명에 `password authentication failed for user "postgres"` 를 준다 → 비밀번호 문제로 오독하기 쉬움. 실측(가짜 ref → `(ENOTFOUND) tenant/user postgres.<ref> not found`)으로 **pooler 가 받은 사용자명을 그대로 되돌려준다**는 걸 확인해 구분. 로그의 사용자명이 `postgres` 면 `.<ref>` 누락이 확정.
+- [x] `backend/config.py` DATABASE_URL 주석을 pooler 형식으로 정정 — 기존 예시가 `postgres:<pw>@<host>` 라 정확히 이 실수를 유도했다.
+- [ ] `render.yaml` 하드닝 검토 — 필수 env 없으면 조용히 기본값으로 뜨지 말고 기동 실패시키기(사고의 근본 원인)
 
 ## 상태 (2026-07-17 갱신)
-- 요청 기능 구현·검증 완료(프론트 31 / 백엔드 28 SQLite / 스모크 27 **실 Supabase**). Supabase 전환 **코드·라이브 검증 모두 완료**. 코드 쪽 배포 준비 끝 — 남은 건 Render 대시보드 조작뿐(브라우저 필요, 자동화 불가: Render CLI·API 키 없음).
-- 배포: DB=Supabase(무료, 서울 ap-northeast-2, 스키마 생성됨·데이터 비어있음) + 앱=Render(무료 blueprint).
-- **내일 재개 지점**: Render GitHub App 권한 붙이기 → https://github.com/settings/installations → Render → Configure → Repository access 에 `work-calender` 추가(계정이 `luckey5252-sketch` 인지 확인) → Render 새로고침. 안 되면 우회로: 공개 URL `https://github.com/luckey5252-sketch/work-calender.git` 직접 입력(자동 재배포만 포기).
-- 미결/다음: (1) **Render Blueprint 연결·배포**(진행 중), (2) 사용자 본인 비밀번호 변경(범위밖).
+- 요청 기능 구현·검증 완료(프론트 31 / 백엔드 28 SQLite / 스모크 27 **실 Supabase**). Supabase 전환 **코드·라이브 검증 모두 완료**.
+- **배포 완료 — https://work-calendar-c62u.onrender.com** (앱=Render 무료 blueprint `calenderforus`, DB=Supabase 서울 ap-northeast-2 Session pooler). 라이브 검증 통과(공개읽기 200 / 미로그인 쓰기 401 / `admin/admin` 401).
+- 무료 플랜 특성: 15분 미접속 시 휴면 → 첫 요청 50~60초. 거슬리면 Cloud Run 이전 후보(코드 거의 그대로).
+- 미결/다음: (1) 브라우저 최종 확인(로그인·일정추가·Supabase 적재), (2) `render.yaml` 필수 env 하드닝, (3) 사용자 본인 비밀번호 변경(범위밖).
 - 보안: 스모크에 쓴 Supabase DB 비밀번호 노출 → **사용자가 교체 완료(2026-07-17)**. 이후 연결문자열은 대화에 남기지 않고 Render 대시보드에 직접 입력하기로 함.
 - 재개(로컬): `npm run serve` → http://127.0.0.1:8000 (admin/admin, SQLite).
 - Supabase 재검증 시: `DATABASE_URL='postgresql://postgres.<ref>:<pw>@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres' python -m backend.smoke_pg`. 빈 Supabase 전제(관리자 삭제 규칙 검증이 tester 유일 관리자에 기댐) — 운영 데이터가 들어간 뒤엔 돌리지 말 것(스모크가 events/users 를 지운다).

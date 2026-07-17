@@ -128,3 +128,37 @@
 - **막힌 지점**: New→Blueprint 가 "No repositories found" + 하단 "An error occurred". GitHub 연결 자체는 되어 있다(우측 라벨이 `Connect account +` → `Configure account` 로 바뀐 것이 근거). 따라서 원인은 연결이 아니라 **Render GitHub App 의 repository access 미부여**(설치 시 select repositories 에서 체크 누락, 혹은 저장소 주인 `luckey5252-sketch` 가 아닌 다른 계정에 설치).
 - **다음 조치**: https://github.com/settings/installations → Render → Configure → Repository access 에 `work-calender` 추가 → Render 새로고침. 우회로는 공개 URL 직접 입력(저장소가 public 임을 비인증 ls-remote 로 확인) — 자동 재배포만 포기하면 즉시 배포 가능.
 - **gh CLI 토큰 만료**: `gh auth status` 가 keyring 토큰 invalid. 다만 git push 는 별도 자격증명으로 성공했다. gh 를 쓸 일이 생기면 `gh auth refresh -h github.com` 필요.
+
+## Render 배포 완료 (2026-07-17)
+
+**결과**: https://work-calendar-c62u.onrender.com 라이브. 서비스명 `work-calendar` 이지만 `work-calendar.onrender.com` 은 **남이 선점**(Express 앱)이라 Render 가 `-c62u` 접미사를 붙였다. 배포 주소를 추측하지 말 것.
+
+### "No repositories found" 의 진짜 원인 — 계정 2개
+- 앞선 추정(GitHub App 권한 미부여)은 **틀렸다.** 실제로는 사용자에게 GitHub 계정이 2개 있고 **저장소가 없는 쪽 계정에 Render 가 붙어 있었다.**
+- **Render 의 Connect GitHub 는 계정을 묻지 않고 브라우저의 활성 GitHub 세션을 그대로 쓴다.** 두 계정에 동시 로그인돼 있으면 GitHub 가 말없이 하나를 넘긴다 → 몇 번을 눌러도 같은 계정만 붙는다. Render 계정 1개 : GitHub 신원 1개.
+- 재연결이 필요하면 **시크릿 창에서 원하는 계정으로만 로그인한 뒤** 연결해야 한다.
+
+### 사고 1 — 공개 URL 에 `admin/admin` 노출
+- Blueprint Apply 에서 `sync: false` env(`DATABASE_URL`/`CAL_ADMIN_USER`/`CAL_ADMIN_PASS`) 입력을 건너뛰면 **셋 다 없는 채로 배포가 성공한다.** `config.py` 는 stderr 경고만 남기고 기본값 폴백 → 공개 주소에서 `admin/admin` 관리자 로그인이 가능했다(외부 probe 로 확인: `{"user":"admin","isAdmin":true}`).
+- 동시에 `DATABASE_URL` 부재 → **휘발성 SQLite** 로 동작. 재시작마다 데이터 소실인데 화면상 정상이라 알아채기 어렵다.
+- **둘 다 fail-open 이다.** 배포 성공 화면만으로는 구분 불가. 실피해는 없었다(데이터 0건, URL 미공개).
+- **시드 규칙 주의**: `db.py:85-98` 은 `users` 가 **비어있을 때만** 시드한다. 이미 `admin` 이 생긴 뒤엔 `CAL_ADMIN_*` 를 넣어도 재시드되지 않는다. 이번엔 낡은 admin 이 휘발성 SQLite 에만 있어서 재배포로 함께 사라져 운이 좋았다. Supabase 에 들어간 뒤였다면 `DELETE FROM users;` + 재시작이 필요했다.
+
+### 사고 2 — 배포 2회 실패, 그런데 사이트는 200
+- `Exited with status 3` = uvicorn 이 startup 이벤트 예외로 죽을 때의 코드. `main.py:63` 의 `@app.on_event("startup")` → `init_db()` → DB 연결 실패였다.
+- **Render 는 새 배포가 실패하면 옛 인스턴스를 계속 서빙한다.** 그래서 밖에서 보면 200 이고 `admin/admin` 도 그대로 열려 있어, "고쳤는데 왜 그대로지?" 로 헤맸다. **배포 후 검증은 Events 탭의 `Deploy live` 확인이 먼저다.**
+- 원인은 `DATABASE_URL` 사용자명의 `.<ref>` 누락. Supabase Connect 화면의 입력칸이 가로로 잘려 있어 드래그 복사 시 유실되기 쉽다 → **복사 아이콘을 쓸 것.**
+
+### 진단 함정 — Supavisor 의 오해 부르는 에러
+- `.<ref>` 없는 사용자명 → `FATAL: password authentication failed for user "postgres"`. **비밀번호 문제로 오독하기 쉽다**(실제로 한 번 오진했다).
+- 실측으로 구분법을 확정: 형식은 맞고 ref 만 가짜면 → `FATAL: (ENOTFOUND) tenant/user postgres.<ref> not found`. 즉 **pooler 는 받은 사용자명을 그대로 에러에 되돌려준다.** 따라서 **로그의 사용자명이 `postgres` 면 `.<ref>` 누락이 확정**이고, `postgres.<ref>` 로 찍히면 그때가 진짜 비밀번호/ref 문제다.
+- 이 구분법이 없으면 비밀번호만 계속 바꾸며 헤맨다.
+
+### 얻은 것
+- `backend/config.py` 의 DATABASE_URL 주석이 `postgres:<pw>@<host>` 라 **정확히 이 실수를 유도했다** → pooler 형식으로 정정하고 함정 두 개(ref 누락·Direct IPv6)를 주석에 남겼다.
+- 진단 도구를 scratchpad 에 만들어 썼다(`check_db_url.py`): 연결문자열의 사용자명 형식·호스트 종류·자리표시자 잔존·URL 인코딩 필요 문자를 검사하고 실제 연결까지 시도한다. **비밀번호는 길이만 출력**해 대화에 노출되지 않는다. Render 배포는 왕복 2분이라, 이런 건 로컬에서 5초에 거르는 게 맞다. (일회성이라 커밋 안 함. 필요하면 backend/ 로 승격.)
+- **em-dash 버그를 또 냈다.** `smoke_pg.py` 에서 겪고 이 문서에 적어놨는데도 반복 → cp949 콘솔은 U+2014 를 인코딩 못 해 `UnicodeEncodeError`. **콘솔로 나가는 문자열엔 em-dash 를 쓰지 말 것**(주석·문서는 무방).
+
+### 남은 것
+- **`render.yaml` 하드닝**: `sync: false` env 가 비어도 배포가 성공하는 게 사고 1 의 근본 원인. 운영에서 필수 env 가 없으면 조용히 기본값으로 뜨는 대신 **기동을 실패시키는** 편이 안전하다(fail-open → fail-closed). `CAL_HTTPS=1` 같은 운영 신호를 조건으로 삼는 방안 검토.
+- 브라우저 최종 확인: 관리자 로그인·일정 추가·공휴일 표시, Supabase Table Editor 적재 확인(휘발성 아님 확증).
