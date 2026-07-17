@@ -8,7 +8,11 @@ from pathlib import Path
 DB_PATH = os.environ.get("CAL_DB", str(Path(__file__).resolve().parent / "calendar.db"))
 
 # Supabase(또는 임의 Postgres) 연결 문자열. 설정되면 SQLite 대신 Postgres 를 쓴다.
-# 예: postgresql://postgres:<pw>@<host>:5432/postgres  (Supabase 대시보드의 연결 문자열)
+# Supabase 대시보드 Connect > Session pooler 의 문자열을 그대로 쓴다(손으로 조립하지 말 것).
+# 예: postgresql://postgres.<ref>:<pw>@aws-1-<region>.pooler.supabase.com:5432/postgres
+# 사용자 이름의 `.<ref>` 는 pooler 가 프로젝트를 식별하는 값이라 빠뜨리면 인증이 거부된다
+# (에러는 password authentication failed 로 나와 비밀번호 문제처럼 보인다).
+# Direct connection(db.<ref>.supabase.co)은 IPv6 전용이라 IPv4 호스트에서 실패한다.
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # 세션 쿠키 서명 키. 운영에서는 반드시 CAL_SECRET 로 주입한다.
