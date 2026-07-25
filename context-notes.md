@@ -174,6 +174,14 @@
 - **왜 리터럴 값**: render.yaml 에 `value: "1"` 리터럴로 박는다. `sync: false` 였다면 사고 1 처럼 Apply 에서 건너뛰어져 게이트 자체가 안 켜졌을 것 — 게이트는 절대 빠지면 안 되므로 리터럴이어야 한다.
 - **왜 import 시점 raise**: `config.py` 는 `main.py` 가 import 하는 첫 모듈이라 app 이 만들어지기 전에 죽는다 → uvicorn 이 startup 이벤트까지 못 가고 즉시 비정상 종료. (startup 예외는 exit 3, import 예외는 exit 1 — 둘 다 Render 는 실패로 본다.)
 - **테스트 영향 없음**: test_api·smoke_pg 는 `CAL_REQUIRE_ENV` 를 안 켜므로 dev 모드(기본값 폴백) 유지. 3시나리오 실측: dev 폴백 정상 / 운영+필수전부 정상 / 운영+누락 → 네 변수 나열하며 uvicorn exit 1.
+
+## 재배포 (2026-07-26 — 미확인 상태로 중단)
+
+- **한 것**: `git push origin main` (`2d54310..8cf27e1`, 6커밋 fast-forward). Render blueprint `calenderforus` 가 auto-deploy 로 붙어 있어 push 가 배포를 트리거한다(별도 대시보드 조작 없이).
+- **막힌 지점**: push 직후부터 라이브 `GET /events` 가 **HTTP 000(무응답)** 만 반환(curl 45s ×9 + 30s 스냅샷, ~5분간). 서비스가 배포 재시작 중이거나 free 콜드스타트로 추정하나, **Render 대시보드 접근이 없어(RENDER_API_KEY·CLI 없음) 확정 불가.** 사용자가 "내일 재개" 요청 → 폴링 중단하고 저장.
+- **배포 완료 감지법(재개 시)**: `GET /events` 응답 첫 일정에 `headAttending` 키가 있으면 새 코드+마이그레이션 라이브(옛 인스턴스면 키 없음). 이게 사고 2("실패해도 옛 인스턴스가 200") 를 우회하는 코드-레벨 신호라 화면 200 보다 믿을 만하다.
+- **주의(사고 2 재현 가능)**: HTTP 000 이 계속이면 배포 실패일 수 있다. 반드시 Render **Events 탭 `Deploy live`** 를 먼저 보고, 실패면 로그로 원인 구분 — 특히 CAL_REQUIRE_ENV 가 붙었는데 blueprint sync 가 sync:false 비밀을 안 넘겼다면 우리가 넣은 fail-closed 가 의도대로 exit 1 낸 것일 수 있다(그 경우 대시보드에서 DATABASE_URL·CAL_ADMIN_* 재확인).
+- **자동화 한계 반복**: Render 는 여전히 대시보드 수동 조작 의존. API 키를 주면 배포 상태 폴링·로그 확인까지 자동화 가능(이전 노트에도 같은 언급).
 - **경고**: 이제 운영 데이터가 있다. `backend/smoke_pg.py` 를 이 DB 에 절대 실행하지 말 것(events/users 를 지운다).
 - 쓰기 경로는 확인됨 — 사용자가 브라우저로 일정을 추가해 4건이 됐다(RLS 켠 뒤에도 정상).
 

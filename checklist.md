@@ -181,3 +181,14 @@
 - [x] 백엔드 29 통과(SQLite 회귀 — `headAttending` 보존 체크 추가)
 - [x] 실서버 HTTP 왕복 — 로그인→`headAttending:true` 생성→GET 에서 `headAttending=True`·부서 보존
 - [x] **SQLite 마이그레이션 실측** — head_attending 없는 옛 DB + 옛 행에 init_db → 컬럼 무손실 추가, 옛 행 `headAttending=False`(미참석). **운영 Supabase 4건도 이렇게 넘어감**(PG 경로는 배포 시 startup init_db 가 `ADD COLUMN IF NOT EXISTS` 실행).
+
+---
+
+# M. 재배포 (2026-07-26 — **미확인, 내일 대시보드 확인**)
+
+- [x] `git push origin main` (`2d54310..8cf27e1`) — 6커밋(하드닝 8cf27e1 + 3차기능 16f03b5 + 문서 4). fast-forward, divergence 없음. Render blueprint `calenderforus` 가 자동 배포 트리거됨.
+- [ ] **배포 완료 미확인** — push 후 라이브 `GET /events` 가 **HTTP 000(무응답) 지속**(45s timeout ×9회 + 30s 스냅샷). 콜드스타트/배포중 재시작으로 보이나 대시보드 없이는 확정 불가. **내일 Render Events 탭에서 `Deploy live` 여부 먼저 확인**(사고 2 교훈: 실패해도 옛 인스턴스가 200 을 서빙하니 화면만 믿지 말 것).
+- [ ] **배포 완료 감지법**: `curl -s https://work-calendar-c62u.onrender.com/events` → 응답 JSON 첫 일정에 **`headAttending` 키가 있으면 새 코드 + 마이그레이션 라이브**(옛 인스턴스면 키 없음). 없으면 아직 옛 코드.
+- [ ] **배포 후 검증(내일)**: 미로그인 `POST /events` 401 / `admin/admin` 로그인 401 / 공개 `GET /events` 200 / 정적 200. 사용자 브라우저로 본부장 참석 일정 추가 → 파랑 칩·주간뷰 부서 줄·수정 배지 앰버 눈으로 확인.
+- [ ] **하드닝 반영 확인**: `CAL_REQUIRE_ENV=1` 은 render.yaml 리터럴이라 blueprint sync 때 붙는다. Render 가 git push 만으로 새 env 를 자동 반영 안 하면 대시보드 **Manual Sync** 또는 Environment 에 직접 추가 필요. **안 붙어도 사이트는 정상**(실비밀이 이미 있음) — 하드닝만 미적용.
+- [ ] ⚠ HTTP 000 이 내일도 계속이면 배포 실패 의심 → Render 로그 확인. 후보: (a) 아직 빌드중, (b) 마이그레이션 `ADD COLUMN` 실패, (c) 만약 CAL_REQUIRE_ENV 가 붙었는데 sync 가 sync:false 비밀을 못 넘겨 필수 누락 → 의도된 fail-closed(exit 1). 로그의 사용자명/에러로 구분.
