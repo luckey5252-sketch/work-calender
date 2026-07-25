@@ -159,9 +159,25 @@
 ## 열린 질문 — **여기부터 재개**
 - **주간뷰 담당부서 위치** — ① 태그 자리(`[수정][출장][안전총괄] 09:00`) vs ② 제목 아래 세 번째 줄(작게·흐리게). **제안 = ②** (실데이터 부서명이 `안전총괄`·`안전총괄부` 로 길어 ①은 좁은 주간 칸에서 첫 줄이 밀린다. 부서는 분류·시간과 성격도 다름.)
 
-## 설계 확정 후 정할 것 (아직 안 물음)
-- 기존 일정 4건(모두 `attendees=[]`)은 마이그레이션 없이 **미참석**으로 읽히면 될 듯 — 확인 필요.
-- 모델 변경안: Event 에 플래그 추가 vs `Attendee.isHead` 유지. **CLAUDE.md 의 데이터 모델과 "칩 색은 isHead 로 판단" 서술을 함께 고쳐야 한다.**
-- 정리 범위: 백엔드 `Attendee.isHead`(`backend/main.py:23`), 프론트 `attendeeRow`·`att-ishead`(`main.js:184~200`).
-- `index.html:110` 힌트 문구("본부장은 직책 체크 시…") 갱신.
-- `chip()` 은 월/주 공용(`render.js:48`) → 부서는 주간뷰에만 나오게 옵션 인자 필요.
+## 설계 확정 (2026-07-25 — 열린 질문 닫음)
+- **주간뷰 부서 위치 = ② 제목 아래 별도 줄**(작게·흐리게). 사용자 확정.
+- **모델 = Event 에 `headAttending: boolean` 추가**(일정 속성). `Attendee` 는 `{name}` 만. 칩 색은 `headAttending` 이 정한다.
+
+---
+
+# L. 3차 기능 구현 완료 (2026-07-25)
+
+- [x] 백엔드 `backend/main.py` — `Attendee` isHead 제거, `EventIn.headAttending`, `_write_fields`·INSERT·UPDATE 에 `head_attending`
+- [x] `backend/db.py` — 스키마 `head_attending` 컬럼 + init_db 마이그레이션(PG `ADD COLUMN IF NOT EXISTS` / SQLite PRAGMA 확인) + row_to_event
+- [x] `src/render.js` — `chip()` hasHead←`headAttending`, 수정 배지 `is-edited` 클래스, 주간뷰 `showDepartment` 옵션 + `chip-dept` 줄
+- [x] `src/main.js` — attendeeRow 이름만, `syncHeadAttending()`(참석 시 참석자칸 숨김), readForm `headAttending`, openForm 세팅, openDetail 이벤트속성
+- [x] `index.html` — 본부장 `참석/미참석` 라디오 + `#attendee-field` + 힌트 갱신
+- [x] `css/styles.css` — `--amber` + `.chip-badge.is-edited` 채움, `.chip-dept`, `.radio-row`, attendee-row 2열, 데드 규칙(`.att-head`·`.att-view li.is-head`) 정리
+- [x] 테스트 — render.smoke(35), test_api·smoke_pg `headAttending` 왕복
+- [x] `CLAUDE.md` 데이터 모델·칩색·참석자 서술 갱신
+
+## 검증 (2026-07-25)
+- [x] 프론트 35 통과(10+14+11 — 본부장=headAttending·부서 주간전용·수정배지 앰버 신규테스트 포함)
+- [x] 백엔드 29 통과(SQLite 회귀 — `headAttending` 보존 체크 추가)
+- [x] 실서버 HTTP 왕복 — 로그인→`headAttending:true` 생성→GET 에서 `headAttending=True`·부서 보존
+- [x] **SQLite 마이그레이션 실측** — head_attending 없는 옛 DB + 옛 행에 init_db → 컬럼 무손실 추가, 옛 행 `headAttending=False`(미참석). **운영 Supabase 4건도 이렇게 넘어감**(PG 경로는 배포 시 startup init_db 가 `ADD COLUMN IF NOT EXISTS` 실행).

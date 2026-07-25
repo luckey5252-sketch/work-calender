@@ -27,7 +27,8 @@ SAMPLE = {
     "priority": "high",
     "location": "3층 회의실",
     "department": "기획",
-    "attendees": [{"name": "김본부", "isHead": True}, {"name": "이대리", "isHead": False}],
+    "headAttending": True,
+    "attendees": [{"name": "이대리"}],
 }
 
 _passed = 0
@@ -72,7 +73,8 @@ def run():
         check("로그인 후 생성은 201", r.status_code == 201)
         check("서버가 id 를 채운다", bool(body.get("id")))
         check("생성 시 createdAt==updatedAt", body["createdAt"] == body["updatedAt"])
-        check("참석자 isHead 보존", body["attendees"][0]["isHead"] is True)
+        check("headAttending 보존", body["headAttending"] is True)
+        check("참석자 이름 보존", body["attendees"][0]["name"] == "이대리")
         check("allDay 불리언 보존", body["time"]["allDay"] is False)
         ev_id = body["id"]
 

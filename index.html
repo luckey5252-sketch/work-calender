@@ -104,10 +104,19 @@
         </div>
 
         <fieldset class="field">
+          <span class="field-label">본부장</span>
+          <div class="radio-row">
+            <label class="inline-check"><input type="radio" name="headAttending" value="yes" /> 참석</label>
+            <label class="inline-check"><input type="radio" name="headAttending" value="no" checked /> 미참석</label>
+          </div>
+          <p class="hint">본부장이 참석하면 이 일정이 파랑으로 강조됩니다.</p>
+        </fieldset>
+
+        <fieldset class="field" id="attendee-field">
           <span class="field-label">참석자</span>
           <div id="attendee-list" class="attendee-list"></div>
           <button type="button" id="add-attendee" class="btn-ghost btn-sm">+ 참석자</button>
-          <p class="hint">본부장은 직책 체크 시 파랑·굵게·라벨로 표시됩니다.</p>
+          <p class="hint">이름을 적은 참석자만 저장됩니다.</p>
         </fieldset>
       </div>
 

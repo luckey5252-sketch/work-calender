@@ -20,7 +20,6 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent
 # ---- 입력 모델 --------------------------------------------------------------
 class Attendee(BaseModel):
     name: str
-    isHead: bool = False
 
 
 class EventTime(BaseModel):
@@ -36,6 +35,7 @@ class EventIn(BaseModel):
     department: str = ""
     category: str = ""
     priority: str = "normal"
+    headAttending: bool = False  # 본부장 참석 여부 — 칩 색을 정한다(일정 속성)
     attendees: list[Attendee] = Field(default_factory=list)
 
 
@@ -192,6 +192,7 @@ def _write_fields(ev: EventIn):
         "department": ev.department,
         "category": ev.category,
         "priority": ev.priority,
+        "head_attending": 1 if ev.headAttending else 0,
         "attendees": json.dumps([a.model_dump() for a in ev.attendees], ensure_ascii=False),
     }
 
@@ -205,9 +206,9 @@ def create_event(ev: EventIn, request: Request, user: str = Depends(require_user
         conn.execute(
             """INSERT INTO events
                (id, title, start, "end", all_day, location, department, category,
-                priority, attendees, created_at, updated_at)
+                priority, head_attending, attendees, created_at, updated_at)
                VALUES (:id, :title, :start, :end, :all_day, :location, :department,
-                :category, :priority, :attendees, :created_at, :updated_at)""",
+                :category, :priority, :head_attending, :attendees, :created_at, :updated_at)""",
             {**f, "id": new_id, "created_at": ts, "updated_at": ts},
         )
         row = conn.execute("SELECT * FROM events WHERE id = ?", (new_id,)).fetchone()
@@ -226,7 +227,8 @@ def update_event(
         conn.execute(
             """UPDATE events SET title=:title, start=:start, "end"=:end, all_day=:all_day,
                location=:location, department=:department, category=:category,
-               priority=:priority, attendees=:attendees, updated_at=:updated_at
+               priority=:priority, head_attending=:head_attending, attendees=:attendees,
+               updated_at=:updated_at
                WHERE id=:id""",
             {**f, "id": event_id, "updated_at": now_iso()},  # updated_at 서버 갱신
         )

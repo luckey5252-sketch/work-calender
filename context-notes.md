@@ -196,3 +196,12 @@
 
 ### 열린 질문 (재개 지점)
 - **주간뷰 담당부서 위치**: ① 태그 자리 vs ② 제목 아래 별도 줄. **제안 = ②** — 실데이터 부서명(`안전총괄`, `안전총괄부`)이 길어 ①은 좁은 주간 칸에서 시간이 밀린다. `chip()` 이 월/주 공용(`render.js:48`)이라 주간뷰에만 나오게 옵션 인자가 필요하다.
+
+## 3차 기능 구현 완료 (2026-07-25)
+
+- **주간뷰 부서 = ② 제목 아래 별도 줄** 확정(사용자). `chip(ev, nowMs, { showDepartment })` 옵션으로 주간뷰만 `chip-dept`(flex 1 0 100% → 제목 아래 줄, 작게·흐리게)를 붙인다. 월 보기는 옵션 미전달이라 부서 안 보임.
+- **모델 = 이벤트 속성 `headAttending: boolean`.** `Attendee.isHead` 를 없애고 본부장 참석을 일정 단위로 올렸다. 근거는 오진 기록(위) — 사용자 멘탈 모델이 "본부장 참석"을 사람 목록 속성이 아니라 일정 속성으로 봤고, `.filter((a)=>a.name)` 이 이름 없는 본부장 체크를 조용히 삼켰다. 칩 색·`.chip.is-head`·상세 상단 `본부장 참석` 라벨 모두 `headAttending` 에서 파생.
+- **폼 A안**: `참석/미참석` 라디오. 참석이면 `#attendee-field` 를 `hidden`(참석자 명단 불필요). 미참석이면 참석자 이름만 입력(체크박스 없음). `readForm` 은 참석 시 `attendees=[]`.
+- **DB 마이그레이션**: events 에 `head_attending INTEGER NOT NULL DEFAULT 0` 컬럼. 기존 배포 DB 는 init_db 가 채운다 — PG=`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, SQLite=PRAGMA 확인 후 ADD. 기존 행은 0(미참석)으로 읽혀 무손실. SQLite 경로는 옛 스키마+옛 행으로 실측 검증. PG 경로는 배포 startup 에서 실행(로컬 미검증 — 표준 idempotent DDL).
+- **수정 배지 = 채운 앰버**(`--amber #cf8a1e`, 진한 갈색 글씨 `#2c2205`). 형광 노랑 클리셰 회피 + 크림 배경 가독. 신규는 파란 테두리 유지. `.chip-badge.is-edited` 로 구분(신규엔 안 붙음).
+- **저장 JSON 호환**: 옛 attendees 행에 남은 `isHead` 키는 무해(모델이 무시). row_to_event 는 그대로 반환.

@@ -45,12 +45,13 @@ function dowClass(day) {
 }
 
 // 일정 카드. 분류색 + 라벨, 우선·본부장·변경 단서는 색과 함께 비-색 단서를 병행한다.
-export function chip(ev, nowMs) {
+// showDepartment 는 주 보기에서만 켜서 담당부서를 제목 아래 별도 줄로 보인다.
+export function chip(ev, nowMs, { showDepartment = false } = {}) {
   const c = el('button', 'chip');
   c.type = 'button';
   c.dataset.eventId = ev.id;
 
-  const hasHead = (ev.attendees || []).some((a) => a.isHead);
+  const hasHead = !!ev.headAttending; // 본부장 참석은 일정 속성 — 이게 칩 색을 정한다
   const catClass = CAT_CLASS[ev.category] || '';
   if (catClass) c.classList.add(catClass);
   if (hasHead) c.classList.add('is-head'); // 본부장이 분류색을 덮어쓴다(강조 우선)
@@ -58,7 +59,9 @@ export function chip(ev, nowMs) {
   const change = changeStatus(ev, nowMs);
   if (change) {
     c.classList.add('is-changed');
-    c.append(el('span', 'chip-badge', CHANGE_LABEL[change]));
+    const badge = el('span', 'chip-badge', CHANGE_LABEL[change]);
+    if (change === 'edited') badge.classList.add('is-edited'); // 수정 = 채운 앰버
+    c.append(badge);
   }
   if (ev.priority === 'high') c.append(el('span', 'chip-priority', '우선'));
   if (ev.category) c.append(el('span', 'chip-cat', ev.category));
@@ -66,11 +69,13 @@ export function chip(ev, nowMs) {
 
   c.append(el('span', 'chip-time', timeLabel(ev)));
   c.append(el('span', 'chip-title', ev.title));
+  if (showDepartment && ev.department) c.append(el('span', 'chip-dept', ev.department));
 
   const parts = [ev.title, timeLabel(ev)];
   if (ev.category) parts.push(ev.category);
   if (ev.priority === 'high') parts.push('우선');
   if (hasHead) parts.push('본부장 참석');
+  if (showDepartment && ev.department) parts.push(ev.department);
   if (change) parts.push(CHANGE_LABEL[change]);
   c.setAttribute('aria-label', parts.join(' · '));
   return c;
@@ -159,7 +164,7 @@ function renderWeek(stateData) {
     if (dayEvents.length === 0) {
       list.append(el('div', 'col-empty', '일정 없음'));
     } else {
-      dayEvents.forEach((ev) => list.append(chip(ev, nowMs)));
+      dayEvents.forEach((ev) => list.append(chip(ev, nowMs, { showDepartment: true })));
     }
     col.append(list);
     grid.append(col);

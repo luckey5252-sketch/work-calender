@@ -181,7 +181,7 @@ function onRootKey(e) {
 }
 
 // ---- 입력 폼 ----------------------------------------------------------------
-function attendeeRow(att = { name: '', isHead: false }) {
+function attendeeRow(att = { name: '' }) {
   const row = document.createElement('div');
   row.className = 'attendee-row';
 
@@ -192,14 +192,6 @@ function attendeeRow(att = { name: '', isHead: false }) {
   name.value = att.name || '';
   name.autocomplete = 'off';
 
-  const headLabel = document.createElement('label');
-  headLabel.className = 'inline-check att-head';
-  const head = document.createElement('input');
-  head.type = 'checkbox';
-  head.className = 'att-ishead';
-  head.checked = !!att.isHead;
-  headLabel.append(head, document.createTextNode('본부장'));
-
   const rm = document.createElement('button');
   rm.type = 'button';
   rm.className = 'btn-step btn-sm';
@@ -207,8 +199,14 @@ function attendeeRow(att = { name: '', isHead: false }) {
   rm.textContent = '×';
   rm.addEventListener('click', () => row.remove());
 
-  row.append(name, headLabel, rm);
+  row.append(name, rm);
   return row;
+}
+
+// 본부장 참석이면 참석자 명단은 필요 없으니 숨긴다(미참석일 때만 이름 입력).
+function syncHeadAttending() {
+  const attends = form.elements.headAttending.value === 'yes';
+  $('#attendee-field').hidden = attends;
 }
 
 function openForm(id, day) {
@@ -235,6 +233,7 @@ function openForm(id, day) {
     form.elements.priority.checked = ev.priority === 'high';
     form.elements.location.value = ev.location || '';
     form.elements.department.value = ev.department || '';
+    form.elements.headAttending.value = ev.headAttending ? 'yes' : 'no';
     (ev.attendees || []).forEach((a) => attendeeList.append(attendeeRow(a)));
   } else {
     const base = day ? new Date(day) : new Date();
@@ -242,6 +241,7 @@ function openForm(id, day) {
     form.elements.start.value = '09:00';
   }
   syncTimeDisabled();
+  syncHeadAttending();
   formDialog.showModal();
   form.elements.title.focus();
 }
@@ -365,12 +365,13 @@ function readForm() {
     if (end <= start) end = null; // 종료가 시작보다 빠르면 버린다
   }
 
-  const attendees = [...attendeeList.querySelectorAll('.attendee-row')]
-    .map((row) => ({
-      name: $('.att-name', row).value.trim(),
-      isHead: $('.att-ishead', row).checked,
-    }))
-    .filter((a) => a.name);
+  const headAttending = fd.headAttending.value === 'yes';
+  // 본부장 참석이면 명단은 비운다. 미참석이면 이름 적은 참석자만 담는다.
+  const attendees = headAttending
+    ? []
+    : [...attendeeList.querySelectorAll('.attendee-row')]
+        .map((row) => ({ name: $('.att-name', row).value.trim() }))
+        .filter((a) => a.name);
 
   return {
     title: fd.title.value.trim(),
@@ -379,6 +380,7 @@ function readForm() {
     priority: fd.priority.checked ? 'high' : 'normal',
     location: fd.location.value.trim(),
     department: fd.department.value.trim(),
+    headAttending,
     attendees,
   };
 }
@@ -405,16 +407,11 @@ function openDetail(id) {
   const body = $('#detail-body');
   const change = changeStatus(ev, Date.now());
   const changeLabel = change === 'edited' ? '수정' : '신규';
-  const hasHead = (ev.attendees || []).some((a) => a.isHead);
+  const hasHead = !!ev.headAttending;
 
   const attHtml = (ev.attendees || []).length
     ? `<ul class="att-view">${ev.attendees
-        .map(
-          (a) =>
-            `<li class="${a.isHead ? 'is-head' : ''}">${escapeHtml(a.name)}${
-              a.isHead ? ' <span class="head-tag">본부장</span>' : ''
-            }</li>`,
-        )
+        .map((a) => `<li>${escapeHtml(a.name)}</li>`)
         .join('')}</ul>`
     : '<span class="muted">없음</span>';
 
@@ -422,7 +419,7 @@ function openDetail(id) {
     <div class="detail-head">
       ${hasHead ? '<span class="head-tag detail-head-tag">본부장 참석</span>' : ''}
       ${ev.priority === 'high' ? '<span class="chip-priority">우선</span>' : ''}
-      ${change ? `<span class="chip-badge in-detail">${changeLabel}</span>` : ''}
+      ${change ? `<span class="chip-badge in-detail${change === 'edited' ? ' is-edited' : ''}">${changeLabel}</span>` : ''}
       <button type="button" id="detail-close" class="btn-step" aria-label="닫기">×</button>
     </div>
     <h2 class="detail-title">${escapeHtml(ev.title)}</h2>
@@ -495,6 +492,7 @@ function wire() {
   // 폼
   $('#add-attendee').addEventListener('click', () => attendeeList.append(attendeeRow()));
   form.elements.allDay.addEventListener('change', syncTimeDisabled);
+  [...form.elements.headAttending].forEach((r) => r.addEventListener('change', syncHeadAttending));
   $('#form-cancel').addEventListener('click', () => formDialog.close());
   $('#form-close').addEventListener('click', () => formDialog.close());
   $('#form-delete').addEventListener('click', async () => {

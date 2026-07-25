@@ -23,6 +23,7 @@ SCHEMA_STATEMENTS = [
       department  TEXT,
       category    TEXT,
       priority    TEXT,
+      head_attending INTEGER NOT NULL DEFAULT 0,
       attendees   TEXT NOT NULL DEFAULT '[]',
       created_at  TEXT NOT NULL,
       updated_at  TEXT NOT NULL
@@ -86,11 +87,19 @@ def init_db():
     with connect() as conn:
         for stmt in SCHEMA_STATEMENTS:
             conn.execute(stmt)
-        if not config.DATABASE_URL:
-            # 예전 SQLite 스키마(is_admin 없음) 마이그레이션. Postgres 는 위 CREATE 로 이미 포함.
-            cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
-            if "is_admin" not in cols:
+        if config.DATABASE_URL:
+            # 이미 배포된 events 테이블에 head_attending 이 없으면 채운다(기존 행은 0=미참석).
+            conn.execute(
+                'ALTER TABLE events ADD COLUMN IF NOT EXISTS head_attending INTEGER NOT NULL DEFAULT 0'
+            )
+        else:
+            # 예전 SQLite 스키마 마이그레이션(SQLite 는 ADD COLUMN IF NOT EXISTS 미지원 → PRAGMA 확인).
+            user_cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+            if "is_admin" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+            event_cols = [r["name"] for r in conn.execute("PRAGMA table_info(events)").fetchall()]
+            if "head_attending" not in event_cols:
+                conn.execute("ALTER TABLE events ADD COLUMN head_attending INTEGER NOT NULL DEFAULT 0")
         count = conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
         if count == 0:
             conn.execute(
@@ -113,6 +122,7 @@ def row_to_event(row) -> dict:
         "department": row["department"] or "",
         "category": row["category"] or "",
         "priority": row["priority"] or "normal",
+        "headAttending": bool(row["head_attending"]),
         "attendees": json.loads(row["attendees"] or "[]"),
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],

@@ -20,7 +20,8 @@ const events = [
     time: { start: '2026-06-25T01:00:00.000Z', allDay: false },
     category: '회의',
     priority: 'normal',
-    attendees: [{ name: '김본부', isHead: true }],
+    headAttending: true, // 본부장 참석은 일정 속성
+    attendees: [],
     createdAt: '2026-06-25T10:00:00.000Z',
     updatedAt: '2026-06-25T10:00:00.000Z', // 신규
   },
@@ -30,6 +31,7 @@ const events = [
     time: { start: '2026-06-25T08:00:00.000Z', allDay: false },
     category: '기타',
     priority: 'high',
+    headAttending: false,
     attendees: [],
     createdAt: '2026-06-20T10:00:00.000Z',
     updatedAt: '2026-06-20T10:00:00.000Z', // 24h 밖 → 변경 없음
@@ -40,6 +42,8 @@ const events = [
     time: { start: '2026-06-25T05:00:00.000Z', allDay: false },
     category: '출장',
     priority: 'normal',
+    headAttending: false,
+    department: '안전총괄부',
     attendees: [],
     createdAt: '2026-06-24T13:00:00.000Z',
     updatedAt: '2026-06-25T09:00:00.000Z', // 수정
@@ -63,10 +67,15 @@ test('오늘이 아닌 빈 캘린더는 empty-hint를 보이지 않는다(일정
   assert.equal(root.querySelector('.empty-hint'), null);
 });
 
-test('본부장 칩은 is-head + "본부장" 라벨을 가진다', () => {
+test('본부장 참석(headAttending) 칩은 is-head + "본부장" 라벨을 가진다', () => {
   const c = chip(events[0], nowMs);
   assert.ok(c.classList.contains('is-head'));
   assert.match(c.textContent, /본부장/);
+});
+
+test('참석자에 본부장이 없어도 headAttending 이면 is-head', () => {
+  const c = chip({ ...events[1], headAttending: true }, nowMs);
+  assert.ok(c.classList.contains('is-head'));
 });
 
 test('신규 일정은 is-changed + "신규" 배지', () => {
@@ -75,10 +84,19 @@ test('신규 일정은 is-changed + "신규" 배지', () => {
   assert.ok([...c.querySelectorAll('.chip-badge')].some((e) => e.textContent === '신규'));
 });
 
-test('수정 일정은 "수정" 배지', () => {
+test('수정 일정은 "수정" 배지 + is-edited(채운 앰버)', () => {
   const c = chip(events[2], nowMs);
   assert.ok(c.classList.contains('is-changed'));
-  assert.ok([...c.querySelectorAll('.chip-badge')].some((e) => e.textContent === '수정'));
+  const badge = [...c.querySelectorAll('.chip-badge')].find((e) => e.textContent === '수정');
+  assert.ok(badge);
+  assert.ok(badge.classList.contains('is-edited'));
+});
+
+test('신규 배지는 is-edited 가 아니다(파란 테두리 유지)', () => {
+  const badge = [...chip(events[0], nowMs).querySelectorAll('.chip-badge')].find(
+    (e) => e.textContent === '신규',
+  );
+  assert.ok(badge && !badge.classList.contains('is-edited'));
 });
 
 test('24h 밖 일정은 변경 배지가 없다', () => {
@@ -96,6 +114,17 @@ test('출장은 cat-field + "출장" 분류 라벨', () => {
   const c = chip(events[2], nowMs);
   assert.ok(c.classList.contains('cat-field'));
   assert.ok([...c.querySelectorAll('.chip-cat')].some((e) => e.textContent === '출장'));
+});
+
+test('주 보기 칩은 담당부서를 별도 줄로 보인다', () => {
+  const c = chip(events[2], nowMs, { showDepartment: true });
+  const dept = c.querySelector('.chip-dept');
+  assert.ok(dept && dept.textContent === '안전총괄부');
+});
+
+test('월 보기 칩은 담당부서를 보이지 않는다', () => {
+  const c = chip(events[2], nowMs);
+  assert.equal(c.querySelector('.chip-dept'), null);
 });
 
 test('주 보기도 throw 없이 그려진다', () => {
