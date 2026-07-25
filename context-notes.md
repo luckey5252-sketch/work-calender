@@ -168,8 +168,12 @@
 - **실측**: 켠 뒤 `GET /events` 3건 유지·`GET /events/:id` 200·미로그인 POST 401. 읽기 경로는 확인됨. **쓰기 경로(로그인 후 생성)는 관리자 비밀번호가 없어 외부 검증 불가 → 사용자 브라우저 확인에 의존.**
 - **교훈**: Supabase 를 "그냥 Postgres" 로 쓸 때도 **PostgREST 노출은 기본값으로 켜져 있다.** DB 로만 쓰는 구조라도 RLS 는 켜두는 게 맞다.
 
-### 남은 것
-- **`render.yaml` 하드닝**: `sync: false` env 가 비어도 배포가 성공하는 게 사고 1 의 근본 원인. 운영에서 필수 env 가 없으면 조용히 기본값으로 뜨는 대신 **기동을 실패시키는** 편이 안전하다(fail-open → fail-closed). `CAL_HTTPS=1` 같은 운영 신호를 조건으로 삼는 방안 검토.
+### render.yaml 하드닝 완료 (2026-07-25 — 사고 1 근본 원인 차단)
+- **fail-open → fail-closed**: `config.py` 에 운영 게이트 `CAL_REQUIRE_ENV` 추가. 켜지면 필수 비밀(`DATABASE_URL`·`CAL_SECRET`·`CAL_ADMIN_USER`·`CAL_ADMIN_PASS`)이 없을 때 기본값으로 폴백하지 않고 import 시점에 `RuntimeError` 를 던진다 → uvicorn 이 exit 1 → Render 가 배포 실패로 표시(`admin/admin`·휘발성 SQLite 로 조용히 뜨던 사고 1 차단).
+- **왜 CAL_HTTPS 대신 전용 플래그**: 검토 때는 CAL_HTTPS 재사용을 떠올렸으나, "Secure 쿠키"와 "필수 비밀 강제"는 의미가 다르다(로컬에서 Secure 쿠키만 테스트하려다 모든 비밀을 강제당하는 결합 회피). 전용 `CAL_REQUIRE_ENV` 로 분리.
+- **왜 리터럴 값**: render.yaml 에 `value: "1"` 리터럴로 박는다. `sync: false` 였다면 사고 1 처럼 Apply 에서 건너뛰어져 게이트 자체가 안 켜졌을 것 — 게이트는 절대 빠지면 안 되므로 리터럴이어야 한다.
+- **왜 import 시점 raise**: `config.py` 는 `main.py` 가 import 하는 첫 모듈이라 app 이 만들어지기 전에 죽는다 → uvicorn 이 startup 이벤트까지 못 가고 즉시 비정상 종료. (startup 예외는 exit 3, import 예외는 exit 1 — 둘 다 Render 는 실패로 본다.)
+- **테스트 영향 없음**: test_api·smoke_pg 는 `CAL_REQUIRE_ENV` 를 안 켜므로 dev 모드(기본값 폴백) 유지. 3시나리오 실측: dev 폴백 정상 / 운영+필수전부 정상 / 운영+누락 → 네 변수 나열하며 uvicorn exit 1.
 - **경고**: 이제 운영 데이터가 있다. `backend/smoke_pg.py` 를 이 DB 에 절대 실행하지 말 것(events/users 를 지운다).
 - 쓰기 경로는 확인됨 — 사용자가 브라우저로 일정을 추가해 4건이 됐다(RLS 켠 뒤에도 정상).
 

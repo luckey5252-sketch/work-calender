@@ -11,6 +11,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.2"
+      - key: CAL_REQUIRE_ENV  # 운영 모드 — 필수 비밀 누락 시 기동 실패(리터럴이라 Apply 에서 안 빠짐)
+        value: "1"
       - key: CAL_SECRET       # 세션 서명 키 — Render 가 무작위 생성
         generateValue: true
       - key: CAL_HTTPS        # HTTPS 뒤 → Secure 쿠키 켜기

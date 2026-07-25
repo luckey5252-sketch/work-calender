@@ -120,7 +120,7 @@
 - [x] **배포 2회 실패(`Exited with status 3`)** — `DATABASE_URL` 사용자명에 `.<ref>` 누락. uvicorn 은 startup 예외 시 exit 3. Render 는 새 배포 실패 시 **옛 인스턴스를 계속 서빙** → 겉보기 200 이라 실패를 놓치기 쉬움.
 - [x] **진단 함정**: Supavisor 는 `.<ref>` 없는 사용자명에 `password authentication failed for user "postgres"` 를 준다 → 비밀번호 문제로 오독하기 쉬움. 실측(가짜 ref → `(ENOTFOUND) tenant/user postgres.<ref> not found`)으로 **pooler 가 받은 사용자명을 그대로 되돌려준다**는 걸 확인해 구분. 로그의 사용자명이 `postgres` 면 `.<ref>` 누락이 확정.
 - [x] `backend/config.py` DATABASE_URL 주석을 pooler 형식으로 정정 — 기존 예시가 `postgres:<pw>@<host>` 라 정확히 이 실수를 유도했다.
-- [ ] `render.yaml` 하드닝 검토 — 필수 env 없으면 조용히 기본값으로 뜨지 말고 기동 실패시키기(사고의 근본 원인)
+- [x] `render.yaml` 하드닝 완료 (2026-07-25) — `CAL_REQUIRE_ENV=1`(리터럴이라 Apply 에서 안 빠짐) 이면 `config.py` 가 필수 비밀(DATABASE_URL·CAL_SECRET·CAL_ADMIN_*) 누락 시 import 시점에 RuntimeError → uvicorn exit 1 로 **배포가 눈에 띄게 실패**(fail-open→fail-closed). 3시나리오 실측(dev 폴백 / 운영 완전 / 운영 누락→uvicorn exit 1). 백엔드 29 회귀 통과.
 
 ## 상태 (2026-07-17 갱신)
 - 요청 기능 구현·검증 완료(프론트 31 / 백엔드 28 SQLite / 스모크 27 **실 Supabase**). Supabase 전환 **코드·라이브 검증 모두 완료**.
