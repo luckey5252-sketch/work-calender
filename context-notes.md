@@ -185,6 +185,27 @@
 - **경고**: 이제 운영 데이터가 있다. `backend/smoke_pg.py` 를 이 DB 에 절대 실행하지 말 것(events/users 를 지운다).
 - 쓰기 경로는 확인됨 — 사용자가 브라우저로 일정을 추가해 4건이 됐다(RLS 켠 뒤에도 정상).
 
+## 배포 중단 원인 = Supabase 무료 자동 일시정지 (2026-07-29 진단 확정)
+
+- **증상**: 2026-07-26 push 이후 라이브가 계속 HTTP 000(무응답). 3일 뒤에도 동일.
+- **HTTP 000 의 해석**: TCP 33ms·TLS 89ms 는 정상인데 그 뒤 120초 무응답 → Render 엣지는 살아 있고 **업스트림(uvicorn)이 없다.** 콜드스타트라면 50~60초 안에 응답하거나 502 를 준다. 무응답 지속 = 기동 실패로 봐야 한다.
+- **Events 탭**: `Exited with status 3` 반복. **exit 3 = startup 이벤트 예외**(`main.py:63` → `init_db()`), **exit 1 = import 예외**(config 게이트). 따라서 `CAL_REQUIRE_ENV` 하드닝은 범인이 아니다 — 오히려 config import 가 통과했다는 건 **필수 env 가 전부 들어있다**는 뜻이고, `DATABASE_URL` 이 없었다면 SQLite 로 기동에 성공했을 테니 PG 경로에서 죽은 것이 확정된다.
+- **로그**: `psycopg.OperationalError: FATAL: (ENOTFOUND) tenant/user postgres.<ref> not found`.
+  - 사용자명에 `.<ref>` 가 **붙어 있다** → 2026-07-17 의 `.<ref>` 누락 사고와 다르다(그땐 `for user "postgres"`). 우리가 실측으로 세운 구분법이 그대로 작동했다.
+  - 인증 이전 단계라 **비밀번호 문제가 아니다.** Supavisor 가 그 테넌트를 모른다는 뜻.
+- **원인**: **Supabase 무료 프로젝트는 7일 무활동 시 자동 일시정지**되고, 정지되면 pooler 테넌트 등록이 빠져 위 에러가 난다. 마지막 DB 트래픽이 2026-07-17(브라우저로 일정 추가)이고 Render 무료는 15분이면 휴면이라 그 뒤 DB 를 안 건드렸다 → 07-24 경 정지 → 07-26 push 시점엔 이미 죽어 있었다.
+- **두 무료 티어가 맞물려 자멸하는 구조다.** Render 휴면(15분) → DB 무활동 → Supabase 정지(7일) → 다음 기동 시 startup 실패. 아무도 안 쓰면 스스로 죽는다.
+- **조치**: Supabase 대시보드에서 Restore → Render Manual Deploy. 정지 중에도 데이터는 보존된다.
+- **재발 방지 후보(미결정)**: 주 1회 이상 `GET /events` 를 때리는 외부 크론(예: GitHub Actions 스케줄, 공개 저장소는 무료). 요청 하나가 Render 를 깨우고 DB 를 건드려 양쪽 타이머를 동시에 리셋한다. Render 무료는 월 750 인스턴스-시간이라 상시 기동은 한도에 닿지만, 하루 1회 핑은 무시할 수준.
+
+## Supabase 프로젝트 소멸 확인 — 07-29 진단 정정 (2026-07-30)
+
+- **사실**: 사용자 Supabase 계정에 프로젝트가 없다. ref `ysvqawnyyrqenbmzikpm`(Render 의 `DATABASE_URL` 사용자명에서 확보, 소문자 20자 형식 정상)로 외부 확인 — `<ref>.supabase.co` 와 `db.<ref>.supabase.co` 둘 다 **NXDOMAIN**. 대조군(`supabase.com`, `aws-1-ap-northeast-2.pooler.supabase.com`)은 정상 해석되니 DNS 경로 문제가 아니다.
+- **정정**: 07-29 에 "7일 무활동 자동 일시정지"로 닫았으나, **정지가 아니라 소멸**이다. 정지된 프로젝트는 호스트명이 남아 paused 응답을 주는데 여긴 이름 자체가 없다. `(ENOTFOUND) tenant/user postgres.<ref> not found` 는 **정지와 삭제가 같은 모양**이라 그 로그만으로는 구분이 안 됐다 — pooler 에러로 정지를 확정하지 말 것. **DNS 존재 여부가 둘을 가르는 신호다.**
+- **잃은 것**: 라이브 일정 4건 + 사용자 계정. 백업 없음. 스키마·코드는 저장소에 있어 재생성 가능.
+- **복구 방향(사용자 선택)**: 새 Supabase 프로젝트 → Render `DATABASE_URL` 만 교체. 코드 변경 0.
+- **keep-alive 크론은 넣지 않기로**(사용자 선택). 7일 무활동이면 다시 정지될 수 있고, 이번처럼 그 뒤 소멸할 수도 있다는 점을 알린 뒤의 결정이다. 정기 사용이 재발 방지책.
+
 ## 3차 기능 보완 — 설계 중 (2026-07-17, 내일 재개)
 
 `superpowers:brainstorming` 진행 중. **설계 승인 전이라 코드 변경 없음**(스킬의 HARD-GATE).

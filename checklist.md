@@ -191,4 +191,14 @@
 - [ ] **배포 완료 감지법**: `curl -s https://work-calendar-c62u.onrender.com/events` → 응답 JSON 첫 일정에 **`headAttending` 키가 있으면 새 코드 + 마이그레이션 라이브**(옛 인스턴스면 키 없음). 없으면 아직 옛 코드.
 - [ ] **배포 후 검증(내일)**: 미로그인 `POST /events` 401 / `admin/admin` 로그인 401 / 공개 `GET /events` 200 / 정적 200. 사용자 브라우저로 본부장 참석 일정 추가 → 파랑 칩·주간뷰 부서 줄·수정 배지 앰버 눈으로 확인.
 - [ ] **하드닝 반영 확인**: `CAL_REQUIRE_ENV=1` 은 render.yaml 리터럴이라 blueprint sync 때 붙는다. Render 가 git push 만으로 새 env 를 자동 반영 안 하면 대시보드 **Manual Sync** 또는 Environment 에 직접 추가 필요. **안 붙어도 사이트는 정상**(실비밀이 이미 있음) — 하드닝만 미적용.
-- [ ] ⚠ HTTP 000 이 내일도 계속이면 배포 실패 의심 → Render 로그 확인. 후보: (a) 아직 빌드중, (b) 마이그레이션 `ADD COLUMN` 실패, (c) 만약 CAL_REQUIRE_ENV 가 붙었는데 sync 가 sync:false 비밀을 못 넘겨 필수 누락 → 의도된 fail-closed(exit 1). 로그의 사용자명/에러로 구분.
+- [x] ⚠ HTTP 000 원인 규명 (2026-07-29) — 후보 (a)(b)(c) 전부 아님. **Supabase 무료 프로젝트가 7일 무활동으로 자동 일시정지**돼 startup 의 `init_db()` 가 연결에 실패했다. Events=`Exited with status 3`(startup 예외, import 예외면 1), 로그=`FATAL: (ENOTFOUND) tenant/user postgres.<ref> not found`. 사용자명에 `.<ref>` 가 붙어 있어 07-17 사고와 구분됨 — 인증 이전 단계라 비밀번호 문제도 아니다. 상세는 context-notes.md.
+- [x] ⚠⚠ **정정 (2026-07-30) — 정지가 아니라 프로젝트 소멸.** Supabase 계정에 프로젝트가 없다. ref `ysvqawnyyrqenbmzikpm` 로 확인 — `<ref>.supabase.co`·`db.<ref>.supabase.co` 둘 다 **NXDOMAIN**(대조군 `supabase.com`·pooler 는 정상 해석). 정지 프로젝트는 호스트가 남으므로 삭제 확정. `(ENOTFOUND) tenant/user ... not found` 는 정지·삭제가 동일해 구분 불가였다 — **DNS 존재 여부로 가른다.**
+- [ ] **복구 = 새 Supabase 프로젝트** (사용자 선택). 일정 4건·계정은 백업 없어 소실. 코드 변경 0, `DATABASE_URL` 만 교체.
+  - [ ] Supabase New project — 리전 `Northeast Asia (Seoul)`, DB 비밀번호 저장
+  - [ ] Connect → **Session pooler**(5432) 문자열을 **복사 아이콘으로** 복사(드래그하면 `.<ref>` 유실 — 07-17 사고)
+  - [ ] Render → `work-calendar` → Environment → `DATABASE_URL` 교체(+ `CAL_SECRET`·`CAL_ADMIN_USER`·`CAL_ADMIN_PASS`·`CAL_REQUIRE_ENV=1` 존재 확인)
+  - [ ] Manual Deploy → Deploy latest commit → Events 탭 **`Deploy live`** 확인(화면 200 을 믿지 말 것 — 사고 2)
+  - [ ] 기동 성공 후 Supabase SQL Editor 에서 `events`·`users` **RLS 켜기**(init_db 가 만든 뒤여야 함)
+  - [ ] 라이브 검증 — `GET /events` 200 + `headAttending` 키 / 미로그인 POST 401 / `admin/admin` 401 / 정적 200
+  - [ ] 사용자 브라우저로 일정 재입력
+- [x] 재발 방지 — 외부 크론 **넣지 않기로 결정**(사용자, 2026-07-30). 7일 이상 안 쓰면 다시 정지·소멸 가능함을 알린 뒤의 선택. 정기 사용이 방지책.
