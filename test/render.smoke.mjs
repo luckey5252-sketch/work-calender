@@ -7,7 +7,7 @@ const dom = new JSDOM('<!doctype html><body><main id="root"></main></body>');
 globalThis.document = dom.window.document;
 globalThis.window = dom.window;
 
-const { renderCalendar, chip } = await import('../src/render.js');
+const { renderCalendar, chip, startTimeLabel } = await import('../src/render.js');
 
 const root = document.getElementById('root');
 const nowMs = new Date('2026-06-25T12:00:00.000Z').getTime();
@@ -130,6 +130,34 @@ test('월 보기 칩은 담당부서를 보이지 않는다', () => {
 test('주 보기도 throw 없이 그려진다', () => {
   renderCalendar(root, { view: 'week', cursor: new Date(2026, 5, 25), selected: new Date(2026, 5, 25), events, nowMs });
   assert.ok(root.querySelector('.week-grid'));
+});
+
+// 월 보기는 좁은 화면에서 제목+시작시간만 남긴다. 끝시간이 붙으면 칸을 넘친다.
+test('시작시간 라벨은 끝시간을 붙이지 않는다', () => {
+  const ranged = { time: { start: '2026-06-25T01:00:00.000Z', end: '2026-06-25T04:00:00.000Z', allDay: false } };
+  const label = startTimeLabel(ranged);
+  assert.match(label, /^\d{2}:\d{2}$/); // 시간대와 무관하게 "HH:mm" 한 개
+  assert.ok(!label.includes('–'));
+});
+
+test('종일 일정의 시작시간 라벨은 "종일"', () => {
+  assert.equal(startTimeLabel({ time: { start: '2026-06-25T01:00:00.000Z', allDay: true } }), '종일');
+});
+
+test('월 보기 칩은 시작시간 줄을 가진다', () => {
+  const c = chip(events[2], nowMs, { showStartTime: true });
+  const start = c.querySelector('.chip-start');
+  assert.ok(start);
+  assert.ok(!start.textContent.includes('–'));
+});
+
+test('주 보기 칩엔 시작시간 줄이 없다', () => {
+  assert.equal(chip(events[2], nowMs, { showDepartment: true }).querySelector('.chip-start'), null);
+});
+
+test('월 달력을 그리면 칩에 시작시간 줄이 붙는다', () => {
+  renderCalendar(root, { view: 'month', cursor: new Date(2026, 5, 25), selected: new Date(2026, 5, 25), events, nowMs });
+  assert.ok(root.querySelector('.day-events .chip-start'));
 });
 
 test('일정이 없으면 empty-hint를 보인다', () => {

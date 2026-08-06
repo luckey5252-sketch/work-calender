@@ -249,6 +249,8 @@ button:disabled {
   overflow: hidden;
 }
 .chip-time { font-family: var(--font-num); font-size: 0.72rem; color: var(--ink-soft); flex-shrink: 0; }
+/* 시작시간만 쓰는 줄 — 좁은 월 보기에서만 켠다(아래 반응형). 넓은 화면은 .chip-time 이 맡는다. */
+.chip-start { display: none; font-family: var(--font-num); flex-shrink: 0; }
 .chip-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 칩 색은 '본부장 참석' 여부만 인코딩한다 — 본부장=강한 파랑(.is-head), 그 외=회색(기본 ink-soft).
@@ -455,10 +457,34 @@ button:focus-visible {
   #add { margin-left: auto; }
   /* 한 줄에 담기도록 좌우 여백만 줄인다(글자 크기는 유지). */
   .app-bar .btn-ghost, .app-bar .seg { padding-left: 10px; padding-right: 10px; }
-  .cal-root { padding: 12px 14px 32px; }
-  .month-grid { grid-auto-rows: minmax(78px, 1fr); gap: 4px; }
-  .day { padding: 4px 4px 6px; }
+  .cal-root { padding: 12px 8px 32px; } /* 한 칸이 50px 남짓이라 여백 6px도 제목 글자로 돌린다 */
+  /* 1fr 이면 모든 주가 가장 바쁜 주 높이로 늘어나 빈 주가 화면을 먹는다.
+     auto 로 두면 각 주가 제 일정만큼만 차지한다. */
+  .month-grid { grid-auto-rows: minmax(84px, auto); gap: 3px; }
+  .day { padding: 4px 2px 6px; }
   .chip-time { display: none; } /* 좁은 화면에선 제목 우선 */
+
+  /* 월 보기 = 제목 + 시작시간만. 한 칸이 50px 남짓이라 배지·분류·본부장 라벨을
+     띄우면 제목이 들어갈 자리가 없다(그래서 지금까지 배지만 보였다).
+     본부장은 라벨 대신 파란 칩 + 굵은 제목으로, 변경은 왼쪽 강조선으로 남는다. */
+  .day-events .chip {
+    flex-wrap: wrap; gap: 0; padding: 2px 3px; border-left-width: 2px;
+  }
+  .day-events .chip-badge,
+  .day-events .chip-cat,
+  .day-events .chip-head,
+  .day-events .chip-priority { display: none; }
+  .day-events .chip-start {
+    display: block; flex: 1 0 100%;
+    font-size: 0.62rem; color: var(--ink-soft); line-height: 1.35;
+  }
+  .day-events .chip-title {
+    flex: 1 0 100%; min-width: 0;
+    white-space: normal; line-height: 1.25; font-size: 0.66rem;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .day-events .more { font-size: 0.62rem; }
 
   /* 주 보기 = 한 화면에 3일. 나머지 4일은 옆으로 밀어서 본다(스냅으로 칸에 맞춰 선다).
      폭을 gap 까지 빼서 계산해야 세 번째 칸이 잘리지 않는다. */

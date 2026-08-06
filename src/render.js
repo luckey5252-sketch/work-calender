@@ -37,6 +37,12 @@ export function timeLabel(ev) {
   return s;
 }
 
+// 끝시간을 뺀 시작시간만. 좁은 월 보기 칸(폰에서 한 칸 50px)은 범위가 안 들어간다.
+export function startTimeLabel(ev) {
+  if (ev.time.allDay) return '종일';
+  return format(new Date(ev.time.start), 'HH:mm');
+}
+
 function dowClass(day) {
   const d = getDay(day);
   if (d === 0) return 'is-sun';
@@ -46,7 +52,9 @@ function dowClass(day) {
 
 // 일정 카드. 분류색 + 라벨, 우선·본부장·변경 단서는 색과 함께 비-색 단서를 병행한다.
 // showDepartment 는 주 보기에서만 켜서 담당부서를 제목 아래 별도 줄로 보인다.
-export function chip(ev, nowMs, { showDepartment = false } = {}) {
+// showStartTime 은 월 보기에서만 켠다 — 좁은 화면에선 CSS 가 다른 단서를 감추고
+// 이 시작시간과 제목만 남긴다(칸이 좁아 범위 시간·라벨이 안 들어간다).
+export function chip(ev, nowMs, { showDepartment = false, showStartTime = false } = {}) {
   const c = el('button', 'chip');
   c.type = 'button';
   c.dataset.eventId = ev.id;
@@ -67,6 +75,7 @@ export function chip(ev, nowMs, { showDepartment = false } = {}) {
   if (ev.category) c.append(el('span', 'chip-cat', ev.category));
   if (hasHead) c.append(el('span', 'chip-head', '본부장'));
 
+  if (showStartTime) c.append(el('span', 'chip-start', startTimeLabel(ev)));
   c.append(el('span', 'chip-time', timeLabel(ev)));
   c.append(el('span', 'chip-title', ev.title));
   if (showDepartment && ev.department) c.append(el('span', 'chip-dept', ev.department));
@@ -113,7 +122,7 @@ function dayCell(day, { cursor, selected, events, nowMs }) {
 
   const list = el('div', 'day-events');
   const dayEvents = sortEventsForDay(events.filter((e) => eventOnDay(e, day)));
-  dayEvents.slice(0, 3).forEach((ev) => list.append(chip(ev, nowMs)));
+  dayEvents.slice(0, 3).forEach((ev) => list.append(chip(ev, nowMs, { showStartTime: true })));
   if (dayEvents.length > 3) {
     const more = el('button', 'more', `+${dayEvents.length - 3}개 더`);
     more.type = 'button';
