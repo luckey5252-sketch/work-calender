@@ -238,3 +238,13 @@
 - **DB 마이그레이션**: events 에 `head_attending INTEGER NOT NULL DEFAULT 0` 컬럼. 기존 배포 DB 는 init_db 가 채운다 — PG=`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, SQLite=PRAGMA 확인 후 ADD. 기존 행은 0(미참석)으로 읽혀 무손실. SQLite 경로는 옛 스키마+옛 행으로 실측 검증. PG 경로는 배포 startup 에서 실행(로컬 미검증 — 표준 idempotent DDL).
 - **수정 배지 = 채운 앰버**(`--amber #cf8a1e`, 진한 갈색 글씨 `#2c2205`). 형광 노랑 클리셰 회피 + 크림 배경 가독. 신규는 파란 테두리 유지. `.chip-badge.is-edited` 로 구분(신규엔 안 붙음).
 - **저장 JSON 호환**: 옛 attendees 행에 남은 `isHead` 키는 무해(모델이 무시). row_to_event 는 그대로 반환.
+
+## 복구 완료 (2026-08-07) — 새 Supabase 프로젝트로 라이브 부활
+
+- **한 것(사용자)**: 새 Supabase 프로젝트 생성 → Render `DATABASE_URL` 교체 → 배포. **코드 변경 0건.** 07-30 에 세운 복구 계획(`복구-할일.txt`)이 그대로 통했다.
+- **결과**: 라이브 `GET /events` 가 07-26 이후 처음으로 응답했다(HTTP 200, 1.5s, `[]`). 옛 일정 4건·계정은 예정대로 소실.
+- **새 코드 확인 방법을 바꿔야 했다.** 원래 감지법은 "응답 JSON 첫 일정에 `headAttending` 키가 있으면 새 코드"였는데, DB 가 새것이라 `/events` 가 비어 데이터 신호가 없다. 대신 **백엔드가 서빙하는 정적 소스를 직접 grep** 했다(`render.js`→`headAttending`·`chip-dept`, `main.js`→`syncHeadAttending`, `index.html`→`attendee-field`, `styles.css`→`is-edited`). 프론트를 같은 서버가 서빙하는 구조라 이게 커밋 수준의 신호가 된다 — **빈 DB 에서는 이 방법이 데이터 신호보다 낫다.**
+- **`admin/admin` 401 이 하드닝 검증을 겸한다.** 시드 관리자가 dev 기본값이 아니라 실제 `CAL_ADMIN_*` 로 만들어졌다는 뜻 = 사고 1(비밀 누락 시 조용히 `admin/admin` 으로 기동) 이 재발하지 않았다. 서버가 기동했다는 사실 자체도 `CAL_REQUIRE_ENV` 게이트를 통과했다는 뜻이라 필수 env 4종이 전부 들어있음이 확인된다.
+- **`pytest backend` 는 0건 수집한다.** `backend/test_api.py` 는 pytest 형식이 아니라 자체 러너다. `python -m backend.test_api` 로 돌려야 29건이 돈다(`python backend/test_api.py` 는 `ModuleNotFoundError: backend` — 패키지 import 라 `-m` 필요). 다음에 헛돌지 말 것.
+- **아직 안 한 것**: RLS 두 줄(테이블이 이제 생겼으니 가능), 일정 재입력, **PG 경로 `headAttending` 왕복 실측**(SQLite 로만 검증했다).
+- **타이머가 다시 돌기 시작했다.** 크론을 안 넣기로 했으므로 7일 무활동이면 새 프로젝트도 같은 길을 간다. 주 1회 접속이 유일한 방지책이라는 07-30 결정은 유효하다.

@@ -187,18 +187,45 @@
 # M. 재배포 (2026-07-26 — **미확인, 내일 대시보드 확인**)
 
 - [x] `git push origin main` (`2d54310..8cf27e1`) — 6커밋(하드닝 8cf27e1 + 3차기능 16f03b5 + 문서 4). fast-forward, divergence 없음. Render blueprint `calenderforus` 가 자동 배포 트리거됨.
-- [ ] **배포 완료 미확인** — push 후 라이브 `GET /events` 가 **HTTP 000(무응답) 지속**(45s timeout ×9회 + 30s 스냅샷). 콜드스타트/배포중 재시작으로 보이나 대시보드 없이는 확정 불가. **내일 Render Events 탭에서 `Deploy live` 여부 먼저 확인**(사고 2 교훈: 실패해도 옛 인스턴스가 200 을 서빙하니 화면만 믿지 말 것).
-- [ ] **배포 완료 감지법**: `curl -s https://work-calendar-c62u.onrender.com/events` → 응답 JSON 첫 일정에 **`headAttending` 키가 있으면 새 코드 + 마이그레이션 라이브**(옛 인스턴스면 키 없음). 없으면 아직 옛 코드.
-- [ ] **배포 후 검증(내일)**: 미로그인 `POST /events` 401 / `admin/admin` 로그인 401 / 공개 `GET /events` 200 / 정적 200. 사용자 브라우저로 본부장 참석 일정 추가 → 파랑 칩·주간뷰 부서 줄·수정 배지 앰버 눈으로 확인.
+- [x] **배포 완료 확인 (2026-08-07)** — 아래 N 절 참조. 당시엔 미확인이었다. push 후 라이브 `GET /events` 가 **HTTP 000(무응답) 지속**(45s timeout ×9회 + 30s 스냅샷). 콜드스타트/배포중 재시작으로 보이나 대시보드 없이는 확정 불가. **내일 Render Events 탭에서 `Deploy live` 여부 먼저 확인**(사고 2 교훈: 실패해도 옛 인스턴스가 200 을 서빙하니 화면만 믿지 말 것).
+- [x] **배포 완료 감지법**: `curl -s https://work-calendar-c62u.onrender.com/events` → 응답 JSON 첫 일정에 **`headAttending` 키가 있으면 새 코드 + 마이그레이션 라이브**(옛 인스턴스면 키 없음). 없으면 아직 옛 코드.
+- [x] **배포 후 검증** (2026-08-07 완료, N 절): 미로그인 `POST /events` 401 / `admin/admin` 로그인 401 / 공개 `GET /events` 200 / 정적 200. 사용자 브라우저로 본부장 참석 일정 추가 → 파랑 칩·주간뷰 부서 줄·수정 배지 앰버 눈으로 확인.
 - [ ] **하드닝 반영 확인**: `CAL_REQUIRE_ENV=1` 은 render.yaml 리터럴이라 blueprint sync 때 붙는다. Render 가 git push 만으로 새 env 를 자동 반영 안 하면 대시보드 **Manual Sync** 또는 Environment 에 직접 추가 필요. **안 붙어도 사이트는 정상**(실비밀이 이미 있음) — 하드닝만 미적용.
 - [x] ⚠ HTTP 000 원인 규명 (2026-07-29) — 후보 (a)(b)(c) 전부 아님. **Supabase 무료 프로젝트가 7일 무활동으로 자동 일시정지**돼 startup 의 `init_db()` 가 연결에 실패했다. Events=`Exited with status 3`(startup 예외, import 예외면 1), 로그=`FATAL: (ENOTFOUND) tenant/user postgres.<ref> not found`. 사용자명에 `.<ref>` 가 붙어 있어 07-17 사고와 구분됨 — 인증 이전 단계라 비밀번호 문제도 아니다. 상세는 context-notes.md.
 - [x] ⚠⚠ **정정 (2026-07-30) — 정지가 아니라 프로젝트 소멸.** Supabase 계정에 프로젝트가 없다. ref `ysvqawnyyrqenbmzikpm` 로 확인 — `<ref>.supabase.co`·`db.<ref>.supabase.co` 둘 다 **NXDOMAIN**(대조군 `supabase.com`·pooler 는 정상 해석). 정지 프로젝트는 호스트가 남으므로 삭제 확정. `(ENOTFOUND) tenant/user ... not found` 는 정지·삭제가 동일해 구분 불가였다 — **DNS 존재 여부로 가른다.**
-- [ ] **복구 = 새 Supabase 프로젝트** (사용자 선택). 일정 4건·계정은 백업 없어 소실. 코드 변경 0, `DATABASE_URL` 만 교체.
-  - [ ] Supabase New project — 리전 `Northeast Asia (Seoul)`, DB 비밀번호 저장
-  - [ ] Connect → **Session pooler**(5432) 문자열을 **복사 아이콘으로** 복사(드래그하면 `.<ref>` 유실 — 07-17 사고)
-  - [ ] Render → `work-calendar` → Environment → `DATABASE_URL` 교체(+ `CAL_SECRET`·`CAL_ADMIN_USER`·`CAL_ADMIN_PASS`·`CAL_REQUIRE_ENV=1` 존재 확인)
-  - [ ] Manual Deploy → Deploy latest commit → Events 탭 **`Deploy live`** 확인(화면 200 을 믿지 말 것 — 사고 2)
-  - [ ] 기동 성공 후 Supabase SQL Editor 에서 `events`·`users` **RLS 켜기**(init_db 가 만든 뒤여야 함)
-  - [ ] 라이브 검증 — `GET /events` 200 + `headAttending` 키 / 미로그인 POST 401 / `admin/admin` 401 / 정적 200
+- [x] **복구 = 새 Supabase 프로젝트** (사용자 선택). 일정 4건·계정은 백업 없어 소실. 코드 변경 0, `DATABASE_URL` 만 교체. **2026-08-07 사용자가 배포 완료.**
+  - [x] Supabase New project — 리전 `Northeast Asia (Seoul)`, DB 비밀번호 저장
+  - [x] Connect → **Session pooler**(5432) 문자열을 **복사 아이콘으로** 복사(드래그하면 `.<ref>` 유실 — 07-17 사고)
+  - [x] Render → `work-calendar` → Environment → `DATABASE_URL` 교체(+ `CAL_SECRET`·`CAL_ADMIN_USER`·`CAL_ADMIN_PASS`·`CAL_REQUIRE_ENV=1` 존재 확인)
+  - [x] Manual Deploy → Deploy latest commit → Events 탭 **`Deploy live`** 확인(화면 200 을 믿지 말 것 — 사고 2)
+  - [ ] 기동 성공 후 Supabase SQL Editor 에서 `events`·`users` **RLS 켜기**(init_db 가 만든 뒤여야 함) — **테이블이 생겼으니 지금 가능. 미완.**
+  - [x] 라이브 검증 — `GET /events` 200 + `headAttending` 키 / 미로그인 POST 401 / `admin/admin` 401 / 정적 200
   - [ ] 사용자 브라우저로 일정 재입력
 - [x] 재발 방지 — 외부 크론 **넣지 않기로 결정**(사용자, 2026-07-30). 7일 이상 안 쓰면 다시 정지·소멸 가능함을 알린 뒤의 선택. 정기 사용이 방지책.
+
+---
+
+# N. 복구 완료 — 라이브 부활 (2026-08-07)
+
+사용자가 새 Supabase 프로젝트를 만들고 Render `DATABASE_URL` 을 교체해 배포했다. 코드 변경 0건.
+
+## 재개 시점 실측 (배포 전)
+- [x] 라이브 `GET /events` → **HTTP 000** (60s 무응답, TCP 는 0.15s 에 붙음 = Render 엣지 생존, 업스트림 없음). 07-26 이후 동일.
+- [x] `ysvqawnyyrqenbmzikpm.supabase.co` → **NXDOMAIN 유지**(대조군 pooler 는 정상 해석) = 옛 프로젝트 소멸 확정 재확인.
+- [x] 프론트 35 통과 / 백엔드 29 통과 — 코드 쪽은 처음부터 문제 없었음.
+
+## 배포 후 검증 (전부 통과)
+- [x] `GET /events` → **200**, 1.5s, `[]` (새 DB라 비어 있음)
+- [x] 미로그인 `POST /events` → **401**
+- [x] `admin/admin` 로그인 → **401** — 시드 관리자가 dev 기본값이 아니라 실제 `CAL_ADMIN_*` 로 만들어졌다는 뜻(사고 1 재발 아님)
+- [x] 정적 6종(`/`, `/index.html`, `/css/styles.css`, `/src/main.js`, `/src/render.js`, `/vendor/date-fns.js`) → 전부 **200**
+- [x] **새 코드(16f03b5) 라이브 확인** — `/events` 가 비어 데이터로 확인 불가 → **서빙 중인 소스에서 직접 grep**: `render.js` 의 `headAttending`·`chip-dept`, `main.js` 의 `syncHeadAttending`, `index.html` 의 `attendee-field`, `styles.css` 의 `is-edited` 모두 존재.
+- [x] 스키마 — 서버 기동 성공 = startup `init_db()` 통과 = `events`·`users` 가 `head_attending` 포함 새 스키마로 생성됨.
+
+## 남은 것
+- [ ] **RLS 켜기** (Supabase SQL Editor). 테이블이 이제 있으니 바로 가능. 안 하면 anon 키만으로 로그인 없이 일정·계정 테이블을 읽고 지울 수 있다.
+      `alter table public.events enable row level security;`
+      `alter table public.users enable row level security;`
+      정책은 만들지 않는다(앱은 소유자 연결이라 RLS 우회, 공개 REST 만 차단).
+- [ ] 브라우저로 일정 재입력 — 본부장 **참석** 1건 + **미참석**+담당부서 1건.
+- [ ] **PG 경로 `headAttending` 왕복 미검증** — SQLite 로만 실측했다. 위 일정이 들어오면 `GET /events` 에서 키 보존을 확인한다(파랑 칩·주간뷰 부서 줄·수정 배지 앰버는 눈으로).
