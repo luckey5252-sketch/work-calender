@@ -60,6 +60,17 @@ function render() {
 
   renderAuth();
   if (hadFocus) focusSelectedCell();
+  scrollWeekToSelected();
+}
+
+// 모바일 주 보기는 한 화면에 3일만 보이므로(가로 스크롤), 선택한 날을 화면 안으로 끌어온다.
+// 넓은 화면은 7일이 다 보여 스크롤 자체가 없으므로 그냥 빠진다.
+function scrollWeekToSelected() {
+  const grid = root.querySelector('.week-grid');
+  if (!grid || grid.scrollWidth <= grid.clientWidth) return;
+  const col = [...grid.children].find((c) => isSameDay(new Date(c.dataset.date), state.selected));
+  if (!col) return; // 다른 주로 넘긴 상태 — 그 주의 첫날부터 보인다
+  grid.scrollLeft = col.offsetLeft - (grid.clientWidth - col.offsetWidth) / 2;
 }
 
 // 로그인 상태를 헤더에 반영한다. body.is-auth 로 편집 UI(추가 버튼)를 켠다.

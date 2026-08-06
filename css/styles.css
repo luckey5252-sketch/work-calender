@@ -301,7 +301,8 @@ button:disabled {
 
 /* ---- 주 보기 ---- */
 .week-grid {
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+  --week-gap: 6px;
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--week-gap);
 }
 .week-col {
   background: var(--surface); border: 1px solid var(--line);
@@ -445,16 +446,34 @@ button:focus-visible {
 /* ---- 반응형 ---- */
 @media (max-width: 760px) {
   .app-bar { gap: 12px; padding: 12px 14px; }
-  .bar-end { width: 100%; justify-content: space-between; }
+  /* 좁은 폭에서 버튼 글씨가 "일정 더 / 하기"로 접히던 것을 막는다.
+     대신 폭이 모자라면 버튼이 눌리지 않고 줄로 넘어가게 한다 —
+     .view-toggle 은 overflow:hidden 이라 눌리면 '주'가 잘려 사라진다. */
+  .app-bar button { white-space: nowrap; }
+  .bar-end { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
+  .bar-end > * { flex-shrink: 0; }
+  #add { margin-left: auto; }
+  /* 한 줄에 담기도록 좌우 여백만 줄인다(글자 크기는 유지). */
+  .app-bar .btn-ghost, .app-bar .seg { padding-left: 10px; padding-right: 10px; }
   .cal-root { padding: 12px 14px 32px; }
   .month-grid { grid-auto-rows: minmax(78px, 1fr); gap: 4px; }
   .day { padding: 4px 4px 6px; }
   .chip-time { display: none; } /* 좁은 화면에선 제목 우선 */
+
+  /* 주 보기 = 한 화면에 3일. 나머지 4일은 옆으로 밀어서 본다(스냅으로 칸에 맞춰 선다).
+     폭을 gap 까지 빼서 계산해야 세 번째 칸이 잘리지 않는다. */
   .week-grid {
     grid-auto-flow: column; grid-template-columns: none;
-    grid-auto-columns: 78%; overflow-x: auto; scroll-snap-type: x mandatory;
+    grid-auto-columns: calc((100% - 2 * var(--week-gap)) / 3);
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
   }
-  .week-col { scroll-snap-align: start; }
+  .week-col { scroll-snap-align: start; min-height: 250px; }
+  /* 칸이 1/3로 좁아졌으니 안쪽 여백을 줄여 제목이 들어갈 폭을 남긴다. */
+  .week-col-head { padding: 6px 7px; gap: 4px; }
+  .week-col-events { padding: 5px; gap: 4px; }
+  .week-col .chip { padding: 4px 6px; gap: 4px; }
+
   .row-2, .time-field .time-grid { grid-template-columns: 1fr; }
   .time-dash { display: none; }
 }
