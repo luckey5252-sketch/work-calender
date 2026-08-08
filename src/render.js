@@ -52,9 +52,14 @@ function dowClass(day) {
 
 // 일정 카드. 분류색 + 라벨, 우선·본부장·변경 단서는 색과 함께 비-색 단서를 병행한다.
 // showDepartment 는 주 보기에서만 켜서 담당부서를 제목 아래 별도 줄로 보인다.
+// showLocation 은 주 보기 하루 상세에서만 켠다 — 한 칸이 화면 전체 폭이라 장소가 들어간다.
 // showStartTime 은 월 보기에서만 켠다 — 좁은 화면에선 CSS 가 다른 단서를 감추고
 // 이 시작시간과 제목만 남긴다(칸이 좁아 범위 시간·라벨이 안 들어간다).
-export function chip(ev, nowMs, { showDepartment = false, showStartTime = false } = {}) {
+export function chip(
+  ev,
+  nowMs,
+  { showDepartment = false, showStartTime = false, showLocation = false } = {},
+) {
   const c = el('button', 'chip');
   c.type = 'button';
   c.dataset.eventId = ev.id;
@@ -78,12 +83,14 @@ export function chip(ev, nowMs, { showDepartment = false, showStartTime = false 
   if (showStartTime) c.append(el('span', 'chip-start', startTimeLabel(ev)));
   c.append(el('span', 'chip-time', timeLabel(ev)));
   c.append(el('span', 'chip-title', ev.title));
+  if (showLocation && ev.location) c.append(el('span', 'chip-loc', ev.location));
   if (showDepartment && ev.department) c.append(el('span', 'chip-dept', ev.department));
 
   const parts = [ev.title, timeLabel(ev)];
   if (ev.category) parts.push(ev.category);
   if (ev.priority === 'high') parts.push('우선');
   if (hasHead) parts.push('본부장 참석');
+  if (showLocation && ev.location) parts.push(ev.location);
   if (showDepartment && ev.department) parts.push(ev.department);
   if (change) parts.push(CHANGE_LABEL[change]);
   c.setAttribute('aria-label', parts.join(' · '));
@@ -145,40 +152,96 @@ function renderMonth(stateData) {
   return wrap;
 }
 
-function renderWeek(stateData) {
-  const { cursor, selected, events, nowMs } = stateData;
-  const grid = el('div', 'week-grid');
-  grid.setAttribute('role', 'grid');
-  grid.setAttribute('aria-label', '주 달력');
+function dowLabel(day) {
+  return WEEKDAYS[(getDay(day) + 6) % 7];
+}
+
+// 상단 날짜 줄 — 한 주를 훑고 날짜를 고르는 곳. 일정 유무는 점 하나로만 알린다
+// (칸이 좁아 개수를 쓸 자리가 없다 — 개수는 aria-label 로 읽어준다).
+// 폼을 열지 않고 '고르기'만 하므로 data-pick 으로 월 보기 칸과 구분한다.
+function weekStrip({ cursor, selected, events }) {
+  const strip = el('div', 'week-strip');
+  strip.setAttribute('role', 'grid');
+  strip.setAttribute('aria-label', '주 날짜 고르기');
 
   weekGrid(cursor).forEach((day) => {
-    const col = el('div', 'week-col');
-    col.setAttribute('role', 'gridcell');
-    col.dataset.date = day.toISOString();
-    col.tabIndex = isSameDay(day, selected) ? 0 : -1;
-    if (isSameDay(day, selected)) col.classList.add('is-selected');
-    if (isToday(day)) col.classList.add('today');
+    const cell = el('div', 'strip-day');
+    cell.setAttribute('role', 'gridcell');
+    cell.dataset.date = day.toISOString();
+    cell.dataset.pick = '';
+    cell.tabIndex = isSameDay(day, selected) ? 0 : -1;
+    if (isSameDay(day, selected)) cell.classList.add('is-selected');
+    if (isToday(day)) cell.classList.add('today');
+    cell.setAttribute('aria-selected', String(isSameDay(day, selected)));
 
+    cell.append(el('span', `strip-dow ${dowClass(day)}`.trim(), dowLabel(day)));
     const holiday = holidayName(day);
-    const head = el('div', 'week-col-head');
-    head.append(el('span', `week-dow ${dowClass(day)}`.trim(), WEEKDAYS[(getDay(day) + 6) % 7]));
-    const wnum = el('span', 'week-daynum', String(day.getDate()));
-    if (holiday) wnum.classList.add('is-holiday');
-    head.append(wnum);
-    if (holiday) head.append(el('span', 'holiday-name', holiday));
-    col.append(head);
+    const num = el('span', 'strip-daynum', String(day.getDate()));
+    if (holiday) num.classList.add('is-holiday'); // 공휴일도 일요일처럼 붉게
+    cell.append(num);
 
-    const list = el('div', 'week-col-events');
-    const dayEvents = sortEventsForDay(events.filter((e) => eventOnDay(e, day)));
-    if (dayEvents.length === 0) {
-      list.append(el('div', 'col-empty', '일정 없음'));
-    } else {
-      dayEvents.forEach((ev) => list.append(chip(ev, nowMs, { showDepartment: true })));
-    }
-    col.append(list);
-    grid.append(col);
+    const count = events.filter((e) => eventOnDay(e, day)).length;
+    const mark = el('span', 'strip-mark');
+    if (count) mark.classList.add('has-events');
+    cell.append(mark);
+
+    const said = [`${day.getMonth() + 1}월 ${day.getDate()}일 ${dowLabel(day)}요일`];
+    if (isToday(day)) said.unshift('오늘');
+    if (holiday) said.push(holiday);
+    said.push(count ? `일정 ${count}건` : '일정 없음');
+    cell.setAttribute('aria-label', said.join(' · '));
+
+    strip.append(cell);
   });
-  return grid;
+  return strip;
+}
+
+// 고른 날 하나를 시간순으로 펼친다. 칸이 화면 폭 전체라 장소·담당부서까지 넣는다.
+function dayPanel({ selected, events, nowMs }) {
+  const panel = el('section', 'day-panel');
+  panel.setAttribute('aria-live', 'polite');
+
+  const head = el('div', 'day-panel-head');
+  const title = el(
+    'h2',
+    'day-panel-date',
+    `${selected.getFullYear()}년 ${selected.getMonth() + 1}월 ${selected.getDate()}일 ${dowLabel(selected)}요일`,
+  );
+  if (isToday(selected)) title.classList.add('is-today');
+  head.append(title);
+  const holiday = holidayName(selected);
+  if (holiday) head.append(el('span', 'holiday-name', holiday));
+  panel.append(head);
+
+  const list = el('div', 'day-panel-list');
+  const dayEvents = sortEventsForDay(events.filter((e) => eventOnDay(e, selected)));
+  if (dayEvents.length === 0) {
+    list.append(dayEmpty());
+  } else {
+    dayEvents.forEach((ev) =>
+      list.append(chip(ev, nowMs, { showDepartment: true, showLocation: true })),
+    );
+  }
+  panel.append(list);
+  return panel;
+}
+
+// 빈 날 — 사과하지 않고 다음 행동을 준다.
+function dayEmpty() {
+  const box = el('div', 'day-empty');
+  box.append(el('strong', null, '이 날은 비어 있어요.'));
+  const btn = el('button', 'btn-primary', '일정 더하기');
+  btn.type = 'button';
+  btn.dataset.action = 'add';
+  box.append(btn);
+  return box;
+}
+
+function renderWeek(stateData) {
+  const wrap = el('div', 'week');
+  wrap.append(weekStrip(stateData));
+  wrap.append(dayPanel(stateData));
+  return wrap;
 }
 
 function emptyHint() {
@@ -196,5 +259,6 @@ function emptyHint() {
 export function renderCalendar(root, stateData) {
   root.innerHTML = '';
   root.append(stateData.view === 'month' ? renderMonth(stateData) : renderWeek(stateData));
-  if (stateData.events.length === 0) root.append(emptyHint());
+  // 주 보기는 하루 패널이 이미 빈 상태와 다음 행동을 보여주므로 전체 안내를 겹치지 않는다.
+  if (stateData.view === 'month' && stateData.events.length === 0) root.append(emptyHint());
 }

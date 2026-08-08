@@ -60,17 +60,18 @@ function render() {
 
   renderAuth();
   if (hadFocus) focusSelectedCell();
-  scrollWeekToSelected();
 }
 
-// 모바일 주 보기는 한 화면에 3일만 보이므로(가로 스크롤), 선택한 날을 화면 안으로 끌어온다.
-// 넓은 화면은 7일이 다 보여 스크롤 자체가 없으므로 그냥 빠진다.
-function scrollWeekToSelected() {
-  const grid = root.querySelector('.week-grid');
-  if (!grid || grid.scrollWidth <= grid.clientWidth) return;
-  const col = [...grid.children].find((c) => isSameDay(new Date(c.dataset.date), state.selected));
-  if (!col) return; // 다른 주로 넘긴 상태 — 그 주의 첫날부터 보인다
-  grid.scrollLeft = col.offsetLeft - (grid.clientWidth - col.offsetWidth) / 2;
+// 기간 이동(‹ ›). 주 보기는 아래에 '고른 날'을 펼치므로 주를 넘기면 고른 날도 같은 요일로
+// 따라가야 한다 — 안 그러면 상단 줄에 없는 날의 일정이 아래 남는다.
+function stepPeriod(dir) {
+  const before = state.view === 'week' ? weekGrid(state.cursor) : null;
+  state.cursor = shift(state.cursor, state.view, dir);
+  if (before) {
+    const i = before.findIndex((d) => isSameDay(d, state.selected));
+    state.selected = startOfDay(weekGrid(state.cursor)[i < 0 ? 0 : i]);
+  }
+  render();
 }
 
 // 로그인 상태를 헤더에 반영한다. body.is-auth 로 편집 UI(추가 버튼)를 켠다.
@@ -132,6 +133,13 @@ function onRootClick(e) {
     openDetail(chipEl.dataset.eventId);
     return;
   }
+  // 주 보기 상단 날짜 줄은 '고르기'만 한다 — 아래 상세를 바꿀 뿐 폼을 열지 않는다.
+  const pickEl = e.target.closest('[data-pick]');
+  if (pickEl) {
+    state.selected = startOfDay(new Date(pickEl.dataset.date));
+    render();
+    return;
+  }
   const moreEl = e.target.closest('[data-more]');
   if (moreEl) {
     const day = new Date(moreEl.dataset.more);
@@ -166,8 +174,9 @@ function onRootKey(e) {
   switch (e.key) {
     case 'ArrowLeft': next = addDays(sel, -1); break;
     case 'ArrowRight': next = addDays(sel, 1); break;
-    case 'ArrowUp': next = addDays(sel, month ? -7 : -1); break;
-    case 'ArrowDown': next = addDays(sel, month ? 7 : 1); break;
+    // 주 보기 날짜 줄도 가로 한 줄이라 좌우가 ±1일, 상하는 양쪽 다 주 이동이다.
+    case 'ArrowUp': next = addDays(sel, -7); break;
+    case 'ArrowDown': next = addDays(sel, 7); break;
     case 'Home': next = weekGrid(sel)[0]; break;
     case 'End': next = weekGrid(sel)[6]; break;
     case 'PageUp': next = month ? addMonths(sel, -1) : addWeeks(sel, -1); break;
@@ -478,20 +487,16 @@ function wire() {
     state.selected = startOfDay(new Date());
     render();
   });
-  $('#prev').addEventListener('click', () => {
-    state.cursor = shift(state.cursor, state.view, -1);
-    render();
-  });
-  $('#next').addEventListener('click', () => {
-    state.cursor = shift(state.cursor, state.view, 1);
-    render();
-  });
+  $('#prev').addEventListener('click', () => stepPeriod(-1));
+  $('#next').addEventListener('click', () => stepPeriod(1));
   $('#view-month').addEventListener('click', () => {
     state.view = 'month';
     render();
   });
   $('#view-week').addEventListener('click', () => {
     state.view = 'week';
+    // 고른 날이 든 주를 펼친다 — 월 보기에서 다른 주의 날을 고른 채 넘어올 수 있다.
+    state.cursor = new Date(state.selected);
     render();
   });
   $('#add').addEventListener('click', () => openForm(null, state.selected));

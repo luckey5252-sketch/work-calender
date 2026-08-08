@@ -3,6 +3,11 @@
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
+// 아래 일정들은 UTC 문자열이라 "어느 날에 속하는지"를 로컬 시간대가 정한다. 주 보기 테스트는
+// "6/25 하루에 셋 다"를 전제하므로 시간대를 고정한다. import 는 끌어올려지니 여기(본문 첫 줄)가
+// 이 파일에서 Date 를 만들기 전 가장 이른 지점이다 — Node 는 이후 Date 부터 바뀐 TZ 를 쓴다.
+process.env.TZ = 'Asia/Seoul';
+
 const dom = new JSDOM('<!doctype html><body><main id="root"></main></body>');
 globalThis.document = dom.window.document;
 globalThis.window = dom.window;
@@ -127,9 +132,51 @@ test('월 보기 칩은 담당부서를 보이지 않는다', () => {
   assert.equal(c.querySelector('.chip-dept'), null);
 });
 
-test('주 보기도 throw 없이 그려진다', () => {
-  renderCalendar(root, { view: 'week', cursor: new Date(2026, 5, 25), selected: new Date(2026, 5, 25), events, nowMs });
-  assert.ok(root.querySelector('.week-grid'));
+// 주 보기 = 상단 날짜 줄(7칸) + 하단에 '고른 날' 하나만 펼침.
+const weekState = { view: 'week', cursor: new Date(2026, 5, 25), selected: new Date(2026, 5, 25), events, nowMs };
+
+test('주 보기는 날짜 줄 7칸과 하루 상세를 그린다', () => {
+  renderCalendar(root, weekState);
+  assert.equal(root.querySelectorAll('.week-strip .strip-day').length, 7);
+  assert.ok(root.querySelector('.day-panel'));
+});
+
+test('날짜 줄 칸은 폼이 아니라 고르기다(data-pick)', () => {
+  renderCalendar(root, weekState);
+  assert.equal(root.querySelectorAll('.strip-day[data-pick]').length, 7);
+});
+
+test('고른 날만 is-selected 이고 그 날 일정만 상세에 나온다', () => {
+  renderCalendar(root, weekState);
+  assert.equal(root.querySelectorAll('.strip-day.is-selected').length, 1);
+  assert.equal(root.querySelectorAll('.day-panel-list .chip').length, events.length);
+});
+
+test('일정 있는 날만 날짜 줄에 점이 켜진다', () => {
+  renderCalendar(root, weekState);
+  assert.equal(root.querySelectorAll('.strip-mark.has-events').length, 1); // 셋 다 6/25
+});
+
+test('상세는 시간순이다 — 01:00 회의 → 05:00 점검 → 08:00 마감', () => {
+  renderCalendar(root, weekState);
+  const titles = [...root.querySelectorAll('.day-panel-list .chip-title')].map((e) => e.textContent);
+  assert.deepEqual(titles, ['주간 본부 회의', '현장 점검', '보고서 마감']);
+});
+
+test('일정 없는 날을 고르면 상세가 다음 행동을 준다', () => {
+  renderCalendar(root, { ...weekState, selected: new Date(2026, 5, 26) });
+  assert.equal(root.querySelector('.day-panel-list .chip'), null);
+  const empty = root.querySelector('.day-empty');
+  assert.ok(empty && empty.querySelector('[data-action="add"]'));
+});
+
+test('주 보기 상세 칩은 장소를 보인다', () => {
+  const c = chip({ ...events[2], location: '남부지사' }, nowMs, { showLocation: true });
+  assert.equal(c.querySelector('.chip-loc').textContent, '남부지사');
+});
+
+test('월 보기 칩은 장소를 보이지 않는다', () => {
+  assert.equal(chip({ ...events[2], location: '남부지사' }, nowMs).querySelector('.chip-loc'), null);
 });
 
 // 월 보기는 좁은 화면에서 제목+시작시간만 남긴다. 끝시간이 붙으면 칸을 넘친다.
