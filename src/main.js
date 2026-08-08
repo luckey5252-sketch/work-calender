@@ -12,7 +12,7 @@ import {
 import { storage } from './storage.js';
 import { auth } from './auth.js';
 import { users } from './users.js';
-import { weekGrid, shift, changeStatus } from './calendar.js';
+import { weekGrid, calendarWeekEnds, shift, changeStatus } from './calendar.js';
 import { renderCalendar, timeLabel } from './render.js';
 
 // ---- 상태 -------------------------------------------------------------------
@@ -177,8 +177,9 @@ function onRootKey(e) {
     // 주 보기 날짜 줄도 가로 한 줄이라 좌우가 ±1일, 상하는 양쪽 다 주 이동이다.
     case 'ArrowUp': next = addDays(sel, -7); break;
     case 'ArrowDown': next = addDays(sel, 7); break;
-    case 'Home': next = weekGrid(sel)[0]; break;
-    case 'End': next = weekGrid(sel)[6]; break;
+    // 월 보기는 달력 주(월~일)의 양끝, 주 보기는 오늘 중심 7일 줄의 양끝.
+    case 'Home': next = month ? calendarWeekEnds(sel)[0] : weekGrid(sel)[0]; break;
+    case 'End': next = month ? calendarWeekEnds(sel)[1] : weekGrid(sel)[6]; break;
     case 'PageUp': next = month ? addMonths(sel, -1) : addWeeks(sel, -1); break;
     case 'PageDown': next = month ? addMonths(sel, 1) : addWeeks(sel, 1); break;
     case 'Enter':

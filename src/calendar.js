@@ -14,7 +14,8 @@ import {
   parseISO,
 } from 'date-fns';
 
-// 주 시작은 월요일(업무용). date-fns weekStartsOn: 1.
+// 월 보기의 주 시작은 월요일(업무용). date-fns weekStartsOn: 1.
+// 주 보기는 아래 weekGrid 처럼 기준일 중심이라 이 옵션을 쓰지 않는다.
 const WEEK_OPTS = { weekStartsOn: 1 };
 
 // 월 보기 그리드 — 해당 월을 감싸는 주 단위 날짜 배열(보통 35~42칸).
@@ -24,11 +25,18 @@ export function monthGrid(date) {
   return eachDayOfInterval({ start: first, end: last });
 }
 
-// 주 보기 그리드 — 해당 날짜가 속한 한 주(7일).
+// 주 보기 그리드 — 기준일을 한가운데 둔 7일(앞 3일 + 기준일 + 뒤 3일).
+// 월~일 고정이 아니라 기준일 중심이라, 앱을 열면 오늘이 줄 가운데(4번째)에 온다.
+// 그래서 요일 순서는 기준일에 따라 돌아간다(예: 수·목·금·토·일·월·화).
 export function weekGrid(date) {
-  const first = startOfWeek(date, WEEK_OPTS);
-  const last = endOfWeek(date, WEEK_OPTS);
-  return eachDayOfInterval({ start: first, end: last });
+  const first = addDays(date, -3);
+  return eachDayOfInterval({ start: first, end: addDays(first, 6) });
+}
+
+// 월 보기 키보드 Home/End 용 — 그 날이 속한 달력 주(월~일)의 양끝.
+// 주 보기는 weekGrid 가 기준일 중심이라 이 함수를 쓰지 않는다.
+export function calendarWeekEnds(date) {
+  return [startOfWeek(date, WEEK_OPTS), endOfWeek(date, WEEK_OPTS)];
 }
 
 // 보기 이동. unit: 'month' | 'week', dir: -1 | 1

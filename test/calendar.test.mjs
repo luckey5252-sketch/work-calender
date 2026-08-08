@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   monthGrid,
   weekGrid,
+  calendarWeekEnds,
   shift,
   changeStatus,
   sortEventsForDay,
@@ -52,11 +53,28 @@ test('12월에서 다음 달로 이동하면 해를 넘긴다', () => {
   assert.equal(next.getMonth(), 0);
 });
 
-test('주 그리드는 7일이고 월요일 시작이다', () => {
+test('주 그리드는 기준일을 가운데(4번째) 둔 7일이다', () => {
   const week = weekGrid(new Date(2026, 5, 25)); // 목요일
   assert.equal(week.length, 7);
-  assert.equal(week[0].getDay(), 1);
-  assert.equal(week[6].getDay(), 0);
+  assert.equal(week[3].getDate(), 25); // 기준일이 한가운데
+  assert.equal(week[0].getDate(), 22); // 앞 3일
+  assert.equal(week[6].getDate(), 28); // 뒤 3일
+});
+
+test('주 그리드는 월 경계를 넘어도 7일을 채운다', () => {
+  const week = weekGrid(new Date(2026, 7, 1)); // 8/1 — 앞 3일이 7월
+  assert.equal(week.length, 7);
+  assert.deepEqual(week.map((d) => `${d.getMonth() + 1}/${d.getDate()}`), [
+    '7/29', '7/30', '7/31', '8/1', '8/2', '8/3', '8/4',
+  ]);
+});
+
+test('월 보기 Home/End 용 달력 주 양끝은 월요일~일요일이다', () => {
+  const [first, last] = calendarWeekEnds(new Date(2026, 5, 25)); // 목요일
+  assert.equal(first.getDay(), 1);
+  assert.equal(last.getDay(), 0);
+  assert.equal(first.getDate(), 22);
+  assert.equal(last.getDate(), 28);
 });
 
 test('주 이동은 7일을 더한다', () => {
