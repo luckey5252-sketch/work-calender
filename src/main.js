@@ -323,7 +323,7 @@ async function renderUsersList() {
   try {
     rows = await users.list();
   } catch (err) {
-    list.append(el('li', 'col-empty', err.message || '목록을 불러오지 못했어요.'));
+    list.append(el('li', 'users-error', err.message || '목록을 불러오지 못했어요.'));
     return;
   }
   rows.forEach((u) => {

@@ -465,7 +465,7 @@ button:focus-visible {
 
   .chip { transition: background-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease; }
   .chip:hover { transform: translateX(2px); }
-  .day, .week-col { transition: border-color 0.12s ease, box-shadow 0.12s ease; }
+  .day, .strip-day { transition: border-color 0.12s ease, box-shadow 0.12s ease; }
 
   .sheet[open] { animation: sheet-in 0.16s ease; }
   @keyframes sheet-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
