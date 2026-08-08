@@ -3,6 +3,9 @@
 웹으로 보는 업무용 달력. 월/주 보기, 일정 CRUD, 분류(회의·출장·기타), 마감·우선순위,
 참석자(본부장 강조), 변경 표시(24h), 한국 공휴일, 로그인(읽기 공개·편집 제한).
 
+주 보기는 **오늘을 가운데 둔 7일 날짜 줄 + 고른 날 하루 상세**다. 날짜 줄은 고르기만 하고
+(폼은 열리지 않는다), 아래에 그 날 일정이 시간순으로 시간·분류·본부장·장소·담당부서와 함께 선다.
+
 ## 구조
 
 - `index.html`, `css/`, `src/`, `vendor/` — 프론트(바닐라 JS, 빌드 없음)
@@ -69,22 +72,23 @@ npm run serve                                        # http://127.0.0.1:8000
 3. 배포되면 `https://<이름>.onrender.com` 에서 접속. 첫 로그인은 위 관리자 계정으로,
    이후 "사용자 관리"에서 팀원 계정을 추가한다.
 
-**무료 티어 주의** — Render free 는 미접속 시 서버가 잠들어 첫 요청이 느리다(수십 초).
-Supabase free 프로젝트는 7일 미접속 시 일시정지된다(데이터는 보존, 접속하면 깨어남).
+**무료 티어 주의** — Render free 는 15분 미접속 시 서버가 잠들고, 다음 접속자는 깨어날 때까지
+기다린다(실측 2~3분). Supabase free 프로젝트는 7일 미접속 시 일시정지된다(데이터는 보존).
+**둘이 맞물려 자멸한다** — 아무도 안 쓰면 Render 가 자고 → DB 가 놀고 → Supabase 가 멈춘다.
+주 1회 이상 접속하거나, 외부 크론(cron-job.org 등)으로 주기적으로 찔러 두 문제를 함께 막는다.
 상시 빠른 응답이 필요하면 유료 플랜으로 올린다(`render.yaml`의 `plan: free` → `starter`).
 
-### 저장소로 만들기 (최초 1회)
+### 배포 갱신
 
-이 폴더는 아직 독립 git 저장소가 아니다. Render 연결 전에 만든다.
+저장소는 이미 GitHub(`work-calender`)에 연결돼 있다. 코드를 고친 뒤에는
 
 ```
-git init
-git add -A          # .gitignore 가 calendar.db·node_modules 제외
-git commit -m "chore: 배포 준비 (Render 블루프린트)"
-# GitHub 에 빈 저장소를 만든 뒤:
-git remote add origin https://github.com/<계정>/<저장소>.git
-git push -u origin main
+npm test            # 통과 확인 후
+git push
 ```
+
+Render 가 자동 배포하지 않으면 대시보드에서 **Manual Deploy**. `render.yaml` 을 고쳤을 때만
+블루프린트를 다시 적용하면 된다(환경변수는 대시보드 값이 유지된다).
 
 ## 테스트
 
